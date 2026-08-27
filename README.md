@@ -3,7 +3,7 @@
 App Android in **Kotlin + Jetpack Compose** per la consultazione di rapporti di intervento
 tecnico: lista, filtri per stato, gestione esplicita degli stati di caricamento ed errore.
 
-[![CI](https://github.com/zanzaromirco-ship-it/field-reports/actions/workflows/ci.yml/badge.svg)](https://github.com/zanzaromirco-ship-it/field-reports/actions/workflows/ci.yml)
+[![CI](https://github.com/zanzaro-mirco/field-reports/actions/workflows/ci.yml/badge.svg)](https://github.com/zanzaro-mirco/field-reports/actions/workflows/ci.yml)
 
 ## Perché questo progetto
 
