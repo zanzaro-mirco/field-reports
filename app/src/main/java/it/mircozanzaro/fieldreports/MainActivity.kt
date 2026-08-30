@@ -7,9 +7,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
-import it.mircozanzaro.fieldreports.data.DefaultReportsRepository
-import it.mircozanzaro.fieldreports.data.StandardDispatcherProvider
-import it.mircozanzaro.fieldreports.data.remote.FakeReportsApi
 import it.mircozanzaro.fieldreports.domain.ReportsRepository
 import it.mircozanzaro.fieldreports.ui.ReportsRoute
 import it.mircozanzaro.fieldreports.ui.ReportsViewModel
@@ -19,12 +16,11 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Composition root: l'unico punto dell'app che conosce le classi
-        // concrete. Tutto il resto dipende dalle interfacce.
-        val repository: ReportsRepository = DefaultReportsRepository(
-            api = FakeReportsApi(),
-            dispatchers = StandardDispatcherProvider(),
-        )
+        // Le dipendenze si prendono dal container dell'Application: l'Activity
+        // non costruisce più nulla, perché viene ricreata a ogni rotazione e il
+        // database no.
+        val repository: ReportsRepository =
+            (application as FieldReportsApplication).container.reportsRepository
 
         setContent {
             MaterialTheme {

@@ -17,8 +17,10 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material.icons.Icons
@@ -89,6 +91,16 @@ fun ReportsScreen(
             }
 
             is ReportsUiState.Ready -> Column(Modifier.padding(padding)) {
+                if (state.isRefreshing) {
+                    LinearProgressIndicator(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("refreshing"),
+                    )
+                }
+                state.refreshError?.let { error ->
+                    StaleDataBanner(message = errorText(error))
+                }
                 StatusFilterRow(selected = state.filter, onSelect = onFilterChange)
                 if (state.isEmpty) {
                     CenteredBox { Text("Nessun rapporto") }
@@ -104,6 +116,33 @@ fun ReportsScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * L'avviso che compare sopra dati validi ma non aggiornati.
+ *
+ * È la traduzione a schermo della scelta fatta nello stato: la
+ * sincronizzazione è fallita, i rapporti che si vedono vengono dalla cache.
+ * Dirlo è necessario — dati vecchi mostrati come freschi sono peggio di nessun
+ * dato — ma non è una ragione per svuotare lo schermo.
+ */
+@Composable
+private fun StaleDataBanner(message: String) {
+    Surface(
+        color = MaterialTheme.colorScheme.errorContainer,
+        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("offline-banner"),
+    ) {
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+            Text(message, style = MaterialTheme.typography.bodyMedium)
+            Text(
+                "Stai vedendo l'ultima copia salvata sul dispositivo.",
+                style = MaterialTheme.typography.labelSmall,
+            )
         }
     }
 }

@@ -33,15 +33,8 @@ fun ReportDto.toDomain(): Report? {
         id = safeId,
         title = title.orEmpty().ifBlank { "Senza titolo" },
         customer = customer.orEmpty(),
-        status = status.toReportStatus(),
+        status = ReportStatus.fromRaw(status),
         createdAtEpochMs = createdAt ?: 0L,
         technician = technician.orEmpty(),
     )
-}
-
-private fun String?.toReportStatus(): ReportStatus = when (this?.uppercase()) {
-    "OPEN" -> ReportStatus.OPEN
-    "IN_PROGRESS", "IN-PROGRESS" -> ReportStatus.IN_PROGRESS
-    "CLOSED" -> ReportStatus.CLOSED
-    else -> ReportStatus.OPEN // stato sconosciuto: si degrada, non si crasha
 }
