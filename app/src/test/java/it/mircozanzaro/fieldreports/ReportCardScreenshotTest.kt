@@ -8,6 +8,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.dp
+import com.github.takahirom.roborazzi.RoborazziOptions
 import com.github.takahirom.roborazzi.captureRoboImage
 import it.mircozanzaro.fieldreports.domain.Report
 import it.mircozanzaro.fieldreports.domain.ReportStatus
@@ -46,6 +47,31 @@ class ReportCardScreenshotTest {
     @get:Rule
     val compose = createComposeRule()
 
+    /**
+     * La tolleranza, misurata invece che indovinata.
+     *
+     * I riferimenti vengono registrati su Windows e verificati su Linux in CI,
+     * e l'antialiasing dei glifi arrotonda in modo leggermente diverso fra le
+     * due piattaforme. Con il confronto esatto la pipeline falliva sempre —
+     * cioè non diceva più niente.
+     *
+     * I due estremi, misurati sulle immagini reali:
+     *
+     * - rumore di piattaforma: 0,08% dei pixel, con differenza massima di 2-4
+     *   livelli su 255 (invisibile a occhio);
+     * - modifica vera più piccola immaginabile — due glifi separatori
+     *   sostituiti: 1,4% dei pixel, con differenza massima di 201 su 255.
+     *
+     * Sedici volte di distanza. Lo 0,3% sta circa tre volte sopra il rumore e
+     * quattro volte sotto la più piccola regressione reale. Una modifica che
+     * cambia le dimensioni dell'immagine — spostare un padding, per dire —
+     * fallisce comunque, perché Roborazzi la tratta come differenza
+     * strutturale e la soglia non la riguarda.
+     */
+    private val opzioni = RoborazziOptions(
+        compareOptions = RoborazziOptions.CompareOptions(changeThreshold = 0.003f),
+    )
+
     private fun report(status: ReportStatus) = Report(
         id = "R-1041",
         title = "Sostituzione contatore trifase",
@@ -67,7 +93,10 @@ class ReportCardScreenshotTest {
                 )
             }
         }
-        compose.onRoot().captureRoboImage("src/test/screenshots/$nome.png")
+        compose.onRoot().captureRoboImage(
+            filePath = "src/test/screenshots/$nome.png",
+            roborazziOptions = opzioni,
+        )
     }
 
     @Test

@@ -169,6 +169,25 @@ sempre, e per aggiornare i riferimenti serve il comando esplicito
 `./gradlew recordRoborazziDebug`. La CI esegue `verifyRoborazziDebug`, che comprende l'intera
 suite di unit test, e carica come artefatto le immagini di differenza quando fallisce.
 
+**La tolleranza è misurata, non indovinata.** I riferimenti si registrano su Windows e si
+verificano su Linux, e l'antialiasing dei glifi arrotonda in modo leggermente diverso fra le
+due piattaforme: con il confronto esatto la pipeline falliva sempre, cioè aveva smesso di
+dire qualcosa. Prima di scegliere un numero ho misurato i due estremi sulle immagini vere:
+
+| | Pixel diversi | Differenza massima |
+|---|---|---|
+| Rumore fra Windows e Linux | 0,08% | 2-4 livelli su 255 |
+| Modifica reale più piccola (due glifi separatori) | 1,4% | 201 su 255 |
+
+Sedici volte di distanza sul conteggio, cinquanta sull'intensità. La soglia è **0,3%**: circa
+tre volte sopra il rumore e quattro volte sotto la più piccola regressione reale. Una
+modifica che altera le dimensioni dell'immagine — spostare un padding di 2dp, per dire —
+fallisce comunque, perché è una differenza strutturale che la soglia non riguarda.
+
+Abbassare una soglia finché la build torna verde è il modo classico di trasformare un test in
+un ornamento. Averla scelta fra due misure, e aver verificato che una regressione reale
+continui a fallire, è ciò che la distingue da quel gesto.
+
 ## Effetti sulla testabilità
 
 | Prima | Dopo |

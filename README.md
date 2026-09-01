@@ -69,6 +69,11 @@ avrebbe significato scriverli e non eseguirli mai. Gli screenshot di riferimento
 sono versionati in `app/src/test/screenshots/`: se qualcuno cambia il layout senza
 aggiornarli, la build fallisce — verificato di proposito, spostando un padding di 2dp.
 
+La tolleranza del confronto è **misurata**: l'antialiasing dei font differisce fra Windows,
+dove registro, e Linux, dove verifica la CI. Ho misurato il rumore di piattaforma (0,08% dei
+pixel) e la più piccola modifica reale immaginabile (1,4%), e ho messo la soglia in mezzo con
+margine. I numeri e il ragionamento sono in [ARCHITECTURE.md](ARCHITECTURE.md).
+
 **Un contratto solo, due implementazioni, la stessa suite su entrambe.**
 `ReportsLocalStore` è implementato da Room e da uno store in memoria, e i test sono scritti
 una volta sola in una classe astratta che le due sottoclassi si limitano a istanziare. È il
