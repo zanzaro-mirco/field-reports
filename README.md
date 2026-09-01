@@ -62,6 +62,13 @@ circola mai una `IOException`. Cambiare client HTTP tocca una classe sola.
 rompe quando cambia la firma di un metodo, a differenza dei mock configurati chiamata per
 chiamata.
 
+**I test di interfaccia girano in CI, non sul mio computer.**
+Compose UI test e screenshot test stanno nel sorgente `test` e girano con Robolectric sulla
+JVM: nessun emulatore, nessun job aggiuntivo nella pipeline. Metterli in `androidTest`
+avrebbe significato scriverli e non eseguirli mai. Gli screenshot di riferimento della card
+sono versionati in `app/src/test/screenshots/`: se qualcuno cambia il layout senza
+aggiornarli, la build fallisce — verificato di proposito, spostando un padding di 2dp.
+
 **Un contratto solo, due implementazioni, la stessa suite su entrambe.**
 `ReportsLocalStore` è implementato da Room e da uno store in memoria, e i test sono scritti
 una volta sola in una classe astratta che le due sottoclassi si limitano a istanziare. È il
@@ -99,8 +106,20 @@ Le scelte architetturali e i principi applicati sono in [ARCHITECTURE.md](ARCHIT
 ## Test
 
 ```bash
-./gradlew test
+./gradlew verifyRoborazziDebug
 ```
+
+Esegue tutta la suite **e** confronta gli screenshot di riferimento. È il comando che
+lancia la CI. Dopo una modifica *voluta* alla UI, i riferimenti si rigenerano con:
+
+```bash
+./gradlew recordRoborazziDebug
+```
+
+I due comandi sono distinti di proposito: `roborazzi.test.verify=true` in
+`gradle.properties` fa sì che un normale `./gradlew test` **confronti** invece di
+riscrivere. Senza, la suite rigenererebbe i riferimenti a ogni esecuzione e non
+fallirebbe mai — una rete di sicurezza finta è peggio di nessuna rete.
 
 | Test | Cosa verifica |
 |---|---|
@@ -119,6 +138,10 @@ Le scelte architetturali e i principi applicati sono in [ARCHITECTURE.md](ARCHIT
 | `il filtro sopravvive a un aggiornamento della cache` | Una scrittura dal database non cancella la scelta dell'utente |
 | `ReportsLocalStoreContract` (×2) | Store in memoria e Room rispettano lo stesso contratto |
 | **`i rapporti sopravvivono alla chiusura del database`** | Il criterio della consultazione offline, verificato su file e non in memoria |
+| `da caricamento a lista l'indicatore sparisce` | La transizione, non i due stati separati: è lì che si annidano gli errori di ricomposizione |
+| `offline con dati in cache si vedono lista e avviso insieme` | Lo stesso criterio della cache, questa volta verificato a schermo |
+| `toccare il chip gia' attivo rimuove il filtro` | Il chip fa da interruttore — il dettaglio che si perde alla prima rifattorizzazione |
+| **`ReportCardScreenshotTest` (×3)** | Una regressione puramente visiva fa fallire la pipeline: 2dp di padding bastano |
 | `un orologio che torna indietro non congela la cache` | Il caso limite che nessuno prova finché non capita |
 
 Gli stati si osservano con **Turbine**, che permette di asserire su un flusso di emissioni
@@ -139,8 +162,9 @@ invece che su un singolo valore finale.
 - [ ] Client HTTP reale (Retrofit o Ktor) al posto di `FakeReportsApi`
 - [ ] Sincronizzazione in background quando la rete torna
 - [ ] Hilt al posto della factory scritta a mano, quando i grafi cresceranno
-- [ ] Compose UI test sulla schermata (i `testTag` sono già in posizione)
+- [x] Compose UI test e screenshot test sulla schermata
 - [ ] Schermata di dettaglio con navigazione
+- [ ] Prestazioni misurate: Macrobenchmark e Baseline Profiles
 
 ## Licenza
 

@@ -170,9 +170,17 @@ private fun StatusFilterRow(
     }
 }
 
+/**
+ * La riga della lista.
+ *
+ * `internal` e non `private` per una ragione sola: è il componente su cui punta
+ * lo screenshot test di riferimento. Renderlo raggiungibile dal modulo di test
+ * permette di fotografare la card da sola, invece di dedurne le modifiche da
+ * un'immagine dell'intera schermata.
+ */
 @Composable
-private fun ReportCard(report: Report) {
-    Card(Modifier.fillMaxWidth()) {
+internal fun ReportCard(report: Report, modifier: Modifier = Modifier) {
+    Card(modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
             Text(report.title, style = MaterialTheme.typography.titleMedium)
             Text(report.customer, style = MaterialTheme.typography.bodyMedium)

@@ -97,6 +97,7 @@ che sopravviva a un refresh.
 | **State hoisting** | `ReportsScreen` | I componenti non possiedono stato |
 | **Provider dei dispatcher** | `DispatcherProvider` | Sostituibili tutti insieme nei test |
 | **Orologio iniettato** | `Clock` | "I dati sono vecchi di sei minuti" si testa senza aspettare sei minuti |
+| **State hoisting verificato** | `ReportsScreenTest` | La schermata si monta su uno stato costruito a mano, senza ViewModel: è la prova che la separazione regge |
 
 ## SOLID, punto per punto
 
@@ -144,6 +145,29 @@ due volte diverge alla prima modifica, e a quel punto "implementano la stessa in
 resta vero solo per il compilatore. La versione Room gira con **Robolectric** su SQLite in
 memoria, quindi dentro `./gradlew test` e quindi in CI — nessun emulatore, nessun job
 aggiuntivo nella pipeline.
+
+## I test di interfaccia, e perché stanno in `test` e non in `androidTest`
+
+`androidTest` è il posto canonico per i test di UI, e sarebbe stata la scelta sbagliata: la
+pipeline non ha un emulatore, quindi quei test sarebbero esistiti senza essere mai eseguiti.
+Robolectric li fa girare sulla JVM, dove girano già tutti gli altri.
+
+`ReportsScreenTest` monta `ReportsScreen` su uno stato costruito a mano — niente ViewModel,
+niente repository, niente coroutine — e verifica cosa compare e quali eventi risalgono. È lo
+state hoisting messo alla prova: se un domani un composable cominciasse a procurarsi i dati
+da solo, questi test smetterebbero di compilare.
+
+`ReportCardScreenshotTest` copre ciò che nessuna asserzione testuale vede: spaziature,
+gerarchia tipografica, una riga che scivola sotto il bordo. Le immagini di riferimento sono
+versionate in `app/src/test/screenshots/`.
+
+**La trappola, e come è chiusa.** Roborazzi di default *scrive* l'immagine invece di
+confrontarla: un normale `./gradlew test` avrebbe rigenerato i riferimenti a ogni esecuzione,
+e la verifica successiva avrebbe confrontato un file con se stesso — sempre verde, sempre
+inutile. `roborazzi.test.verify=true` in `gradle.properties` inverte il default: si confronta
+sempre, e per aggiornare i riferimenti serve il comando esplicito
+`./gradlew recordRoborazziDebug`. La CI esegue `verifyRoborazziDebug`, che comprende l'intera
+suite di unit test, e carica come artefatto le immagini di differenza quando fallisce.
 
 ## Effetti sulla testabilità
 

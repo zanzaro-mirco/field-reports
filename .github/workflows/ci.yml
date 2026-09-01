@@ -18,8 +18,12 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - name: Unit test
-        run: ./gradlew test --no-daemon
+      # `verifyRoborazziDebug` esegue tutta la suite di unit test e in più
+      # confronta gli screenshot con i riferimenti versionati. Sostituisce
+      # `test` invece di affiancarlo: eseguirli entrambi rifarebbe lo stesso
+      # lavoro due volte.
+      - name: Unit test e verifica screenshot
+        run: ./gradlew verifyRoborazziDebug --no-daemon
 
       - name: Lint
         run: ./gradlew lint --no-daemon
@@ -33,4 +37,5 @@ jobs:
           name: reports
           path: |
             app/build/reports/
+            app/build/outputs/roborazzi/
             app/build/outputs/apk/debug/*.apk
