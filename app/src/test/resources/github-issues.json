@@ -1,0 +1,53 @@
+[
+  {
+    "number": 1041,
+    "title": "Sostituzione contatore trifase",
+    "state": "open",
+    "created_at": "2026-07-27T08:00:00Z",
+    "user": { "login": "m-rossi" },
+    "labels": [{ "name": "bug" }],
+    "repository_url": "https://api.github.com/repos/zanzaro-mirco/field-reports",
+    "html_url": "https://github.com/zanzaro-mirco/field-reports/issues/1041",
+    "comments": 3
+  },
+  {
+    "number": 1042,
+    "title": "Verifica lettore RFID magazzino",
+    "state": "open",
+    "created_at": "2026-07-26T14:30:00Z",
+    "user": { "login": "l-bianchi" },
+    "labels": [{ "name": "in progress" }, { "name": "hardware" }],
+    "repository_url": "https://api.github.com/repos/zanzaro-mirco/field-reports"
+  },
+  {
+    "number": 1043,
+    "title": "Taratura stampante fiscale cassa 3",
+    "state": "closed",
+    "created_at": "2026-07-25T09:15:00Z",
+    "user": { "login": "m-rossi" },
+    "labels": [{ "name": "in-progress" }],
+    "repository_url": "https://api.github.com/repos/zanzaro-mirco/field-reports"
+  },
+  {
+    "number": 1044,
+    "title": "Aggiungi la cache locale con Room",
+    "state": "open",
+    "created_at": "2026-07-24T11:00:00Z",
+    "user": { "login": "zanzaro-mirco" },
+    "labels": [],
+    "repository_url": "https://api.github.com/repos/zanzaro-mirco/field-reports",
+    "pull_request": {
+      "url": "https://api.github.com/repos/zanzaro-mirco/field-reports/pulls/1044",
+      "merged_at": null
+    }
+  },
+  {
+    "number": 1045,
+    "title": null,
+    "state": "open",
+    "created_at": "non-una-data",
+    "user": null,
+    "labels": [],
+    "repository_url": "https://api.github.com/repos/zanzaro-mirco/field-reports"
+  }
+]

@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.roborazzi)
 }
 
@@ -32,6 +33,10 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // `minSdk` è 24 e `java.time` richiede la 26. Il desugaring lo rende
+        // disponibile comunque: l'alternativa era scrivere a mano un parser
+        // ISO-8601 per le date che arrivano dall'API — fragile, e da testare.
+        isCoreLibraryDesugaringEnabled = true
     }
 
     kotlinOptions {
@@ -63,6 +68,13 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     implementation(libs.kotlinx.coroutines.core)
 
+    coreLibraryDesugaring(libs.desugar.jdk.libs)
+
+    implementation(libs.kotlinx.serialization.json)
+    implementation(libs.retrofit)
+    implementation(libs.retrofit.converter.kotlinx)
+    debugImplementation(libs.okhttp.logging.interceptor)
+
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
@@ -81,6 +93,7 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.turbine)
     testImplementation(libs.androidx.room.testing)
+    testImplementation(libs.okhttp.mockwebserver)
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.test.core)
     testImplementation(libs.roborazzi)

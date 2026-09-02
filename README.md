@@ -25,6 +25,22 @@ un ramo scoperto in silenzio. È l'alternativa al classico trio
 `isLoading` / `data` / `errorMessage`, che permette stati impossibili come "sto caricando
 e ho anche un errore".
 
+**Cambiare la sorgente dati non ha toccato dominio né presentazione.**
+Sostituire l'API finta con Retrofit verso una API pubblica ha modificato due sole classi già
+esistenti: `ErrorMapper`, che ha guadagnato due rami, e la composition root, dove si sceglie
+l'implementazione concreta. Nessun file sotto `domain/` o `ui/`, e `ReportsViewModelTest` è
+uscito dal commit **senza una riga cambiata** — passa identico contro una sorgente
+completamente diversa. È quella riga del `git diff` la dimostrazione che i confini erano nel
+posto giusto.
+
+**I dati sono mappati, non inventati.**
+Nessuna API pubblica restituisce rapporti di intervento tecnico, e fabbricarli dentro un mapper
+sarebbe stato un segnale peggiore che non averli. L'app legge le issue di questo stesso
+repository: `title` al titolo, `state` allo stato, `user.login` al tecnico. Il valore sta nelle
+imperfezioni che il mapper deve assorbire — l'endpoint restituisce anche le pull request, lo
+stato "in lavorazione" non esiste su GitHub e va dedotto da un'etichetta, le date arrivano in
+ISO-8601. Un'API vera insegna più di un JSON con lo schema perfetto.
+
 **La cache locale è la sorgente unica, non un ripiego.**
 Room sta sotto tutto: la UI legge sempre dal database, e la rete si limita ad aggiornarlo.
 Non c'è un solo ramo `if (isOnline)` nella presentazione — offline la sorgente contiene
@@ -147,6 +163,11 @@ fallirebbe mai — una rete di sicurezza finta è peggio di nessuna rete.
 | `offline con dati in cache si vedono lista e avviso insieme` | Lo stesso criterio della cache, questa volta verificato a schermo |
 | `toccare il chip gia' attivo rimuove il filtro` | Il chip fa da interruttore — il dettaglio che si perde alla prima rifattorizzazione |
 | **`ReportCardScreenshotTest` (×3)** | Una regressione puramente visiva fa fallire la pipeline: 2dp di padding bastano |
+| `interroga il percorso e i parametri giusti` | La richiesta vera, contro un server HTTP locale: un `@SerialName` sbagliato si vede |
+| `le pull request non sono rapporti e vengono scartate` | La prima imperfezione dell'API reale che il mapper assorbe |
+| `una issue chiusa resta chiusa anche se etichettata in progress` | L'etichetta racconta com'era la lavorazione, non com'è finita |
+| `il limite di richieste di GitHub diventa un errore di servizio` | Il ramo `DomainError.Server` ha finalmente chi lo produce |
+| `un timeout resta un timeout e non diventa un errore di rete` | `SocketTimeoutException` estende `IOException`: l'ordine dei rami conta |
 | `un orologio che torna indietro non congela la cache` | Il caso limite che nessuno prova finché non capita |
 
 Gli stati si osservano con **Turbine**, che permette di asserire su un flusso di emissioni
@@ -164,7 +185,7 @@ invece che su un singolo valore finale.
 ## Stato e prossimi passi
 
 - [x] Cache locale con Room, per la consultazione offline
-- [ ] Client HTTP reale (Retrofit o Ktor) al posto di `FakeReportsApi`
+- [x] Client HTTP reale (Retrofit + kotlinx-serialization) al posto di `FakeReportsApi`
 - [ ] Sincronizzazione in background quando la rete torna
 - [ ] Hilt al posto della factory scritta a mano, quando i grafi cresceranno
 - [x] Compose UI test e screenshot test sulla schermata

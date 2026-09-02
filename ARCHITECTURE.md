@@ -121,6 +121,45 @@ definita nel dominio, e il test sostituisce il repository invece di raggiungerlo
 passando dall'API sottostante. Lo stesso vale un livello più sotto: il repository dipende
 da `ReportsLocalStore` e non da Room, quindi si testa senza database.
 
+## Il client HTTP, e perché la sorgente è mappata invece che inventata
+
+Nessuna API pubblica restituisce rapporti di intervento tecnico. La scelta non era «quale
+backend uso» ma «quale sorgente reale si mappa sul dominio senza fabbricare dati», perché dati
+inventati dentro un mapper sono un segnale peggiore di nessun dato.
+
+Le issue di un repository GitHub corrispondono quasi campo per campo: `title` al titolo,
+`state` allo stato, `user.login` al tecnico, `created_at` alla data, il nome del repository al
+cliente. L'API è pubblica, senza chiave, e il repository puntato è quello del progetto stesso
+— quindi non dipende da un servizio di terzi che può sparire.
+
+Il valore vero sta però nelle **imperfezioni**, che sono la ragione per cui un'API reale
+insegna più di un file JSON con lo schema perfetto. `GitHubReportsApi` ne assorbe tre:
+
+1. **L'endpoint restituisce anche le pull request**, che non sono rapporti e non hanno un
+   campo che le dichiari: si riconoscono dalla presenza di un oggetto `pull_request` che sulle
+   issue non esiste.
+2. **`IN_PROGRESS` non esiste su GitHub**, che conosce solo `open` e `closed`. Si deduce da
+   un'etichetta `in progress`, e solo su una issue aperta — una chiusa è chiusa a prescindere
+   da come era etichettata mentre ci si lavorava. È una regola di dominio applicata a dati che
+   non la conoscono: il lavoro tipico di un mapper.
+3. **Le date arrivano in ISO-8601** e il dominio le vuole in millisecondi.
+
+Il mapper si ferma a `ReportDto` invece di produrre direttamente un `Report`: così le difese
+già scritte e già testate in `ReportDto.toDomain()` — id vuoti, titoli mancanti, stati
+sconosciuti — continuano a valere identiche. Una seconda strada verso il dominio avrebbe
+significato una seconda copia di quelle difese, cioè due copie che prima o poi divergono.
+
+**Il criterio, verificabile nel `git diff`.** Sostituire la sorgente finta con quella vera non
+ha toccato una riga sotto `domain/` né sotto `ui/`, e `ReportsViewModelTest` è uscito dal
+commit senza modifiche. Le uniche due classi già esistenti coinvolte sono `ErrorMapper`, che
+ha guadagnato due rami, e `AppContainer`, dove si sceglie l'implementazione concreta — che è
+letteralmente il suo mestiere.
+
+**Core library desugaring.** `Instant.parse` richiede la API 26 e il `minSdk` è 24.
+L'alternativa era un parser ISO-8601 scritto a mano: codice fragile, da testare, per risolvere
+un problema che la libreria standard risolve già. Il desugaring costa un flag e una
+dipendenza.
+
 ## Tre rappresentazioni dello stesso rapporto
 
 `Report` (dominio), `ReportDto` (rete), `ReportEntity` (database). La ripetizione è voluta:
@@ -218,3 +257,13 @@ continui a fallire, è ciò che la distingue da quel gesto.
 - **Nessuna sincronizzazione in background.** La cache si aggiorna all'apertura della
   schermata e sul gesto dell'utente. Un `WorkManager` che drena quando la rete torna è il
   passo successivo, ed è lo stesso problema già risolto in pos_sync.
+- **Nessuna autenticazione verso GitHub.** Senza token il limite è 60 richieste all'ora, che
+  per una demo basta — e produce un `403` vero, cioè un errore reale da mostrare invece di uno
+  simulato. Un token andrebbe conservato fuori dal repository, e la gestione dei segreti è un
+  argomento a sé che questo progetto non ha ragione di aprire.
+- **Nessuna paginazione.** Si chiedono le prime cinquanta issue e basta. Con una lista che
+  cresce servirebbe la paginazione a scorrimento, che è però un lavoro di presentazione oltre
+  che di rete: vale quando esiste il problema.
+- **`FakeReportsApi` non è stata cancellata.** Continua a servire ai test e a far girare l'app
+  senza rete. Due implementazioni dello stesso contratto sono il motivo per cui il contratto
+  esisteva.
