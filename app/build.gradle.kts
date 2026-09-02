@@ -73,7 +73,11 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.retrofit)
     implementation(libs.retrofit.converter.kotlinx)
-    debugImplementation(libs.okhttp.logging.interceptor)
+    // Dichiarato anche se Retrofit lo porterebbe comunque: la composition root
+    // usa `OkHttpClient` e `MediaType` in prima persona, e appoggiarsi a una
+    // dipendenza transitiva per tipi che si scrivono nel proprio codice
+    // significa rompersi il giorno in cui quella transitiva cambia.
+    implementation(libs.okhttp)
 
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
