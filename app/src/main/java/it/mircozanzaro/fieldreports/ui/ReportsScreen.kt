@@ -163,7 +163,7 @@ private fun StatusFilterRow(
             FilterChip(
                 selected = selected == status,
                 onClick = { onSelect(if (selected == status) null else status) },
-                label = { Text(status.label()) },
+                label = { Text(status.filterLabel()) },
                 colors = FilterChipDefaults.filterChipColors(),
             )
         }
@@ -197,8 +197,26 @@ private fun CenteredBox(content: @Composable () -> Unit) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { content() }
 }
 
-private fun ReportStatus.label(): String = when (this) {
+/**
+ * L'etichetta sul chip del filtro. Descrive un insieme di rapporti, quindi è al
+ * plurale: "Chiusi" significa "mostrami quelli chiusi".
+ */
+private fun ReportStatus.filterLabel(): String = when (this) {
     ReportStatus.OPEN -> "Aperti"
     ReportStatus.IN_PROGRESS -> "In corso"
     ReportStatus.CLOSED -> "Chiusi"
+}
+
+/**
+ * L'etichetta su una singola card. Descrive un rapporto solo, quindi è al
+ * singolare.
+ *
+ * Era la stessa funzione del filtro, e sulla card si leggeva "R-1041 · M. Rossi
+ * · Chiusi". Due usi che sembrano lo stesso testo finché non si guarda cosa
+ * stanno descrivendo: un insieme in un caso, un elemento nell'altro.
+ */
+private fun ReportStatus.label(): String = when (this) {
+    ReportStatus.OPEN -> "Aperto"
+    ReportStatus.IN_PROGRESS -> "In corso"
+    ReportStatus.CLOSED -> "Chiuso"
 }
