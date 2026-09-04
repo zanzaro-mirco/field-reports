@@ -9,14 +9,19 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
 
-      - uses: gradle/actions/setup-gradle@v4
+      # Ferma alla v5, che è già su Node 24 e chiude l'avviso di
+      # deprecazione. La v6 sposta la cache di Gradle in un componente
+      # separato e non più open source, e usarla significa accettare i
+      # Terms of Use di Gradle: è una decisione di licenza, non un
+      # aggiornamento di routine.
+      - uses: gradle/actions/setup-gradle@v5
 
       # `verifyRoborazziDebug` esegue tutta la suite di unit test e in più
       # confronta gli screenshot con i riferimenti versionati. Sostituisce
@@ -31,7 +36,7 @@ jobs:
       - name: Build debug APK
         run: ./gradlew assembleDebug --no-daemon
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: reports
