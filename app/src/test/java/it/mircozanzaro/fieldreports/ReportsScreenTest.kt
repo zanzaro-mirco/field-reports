@@ -54,7 +54,7 @@ class ReportsScreenTest {
     )
 
     /** Monta la schermata su uno stato fisso, ignorando gli eventi. */
-    private fun mostra(state: ReportsUiState) {
+    private fun show(state: ReportsUiState) {
         compose.setContent {
             ReportsScreen(
                 state = state,
@@ -67,7 +67,7 @@ class ReportsScreenTest {
 
     @Test
     fun `il caricamento mostra l'indicatore e nessuna lista`() {
-        mostra(ReportsUiState.Loading)
+        show(ReportsUiState.Loading)
 
         compose.onNodeWithTag("loading").assertIsDisplayed()
         compose.onNodeWithTag("report-list").assertDoesNotExist()
@@ -98,7 +98,7 @@ class ReportsScreenTest {
 
     @Test
     fun `un errore senza dati mostra il messaggio tradotto`() {
-        mostra(ReportsUiState.Error(DomainError.Network))
+        show(ReportsUiState.Error(DomainError.Network))
 
         compose.onNodeWithTag("error").assertIsDisplayed()
         compose.onNodeWithText("Nessuna connessione. Controlla la rete e riprova.")
@@ -109,7 +109,7 @@ class ReportsScreenTest {
     fun `offline con dati in cache si vedono lista e avviso insieme`() {
         // È il criterio della cache locale, verificato a schermo: l'errore non
         // sostituisce i rapporti, ci si aggiunge sopra.
-        mostra(
+        show(
             ReportsUiState.Ready(
                 reports = listOf(report("R-1041")),
                 refreshError = DomainError.Network,
@@ -124,14 +124,14 @@ class ReportsScreenTest {
 
     @Test
     fun `senza aggiornamento in corso non c'e' l'indicatore di refresh`() {
-        mostra(ReportsUiState.Ready(listOf(report("R-1041"))))
+        show(ReportsUiState.Ready(listOf(report("R-1041"))))
 
         compose.onNodeWithTag("refreshing").assertDoesNotExist()
     }
 
     @Test
     fun `durante l'aggiornamento l'indicatore compare sopra i dati`() {
-        mostra(
+        show(
             ReportsUiState.Ready(
                 reports = listOf(report("R-1041")),
                 isRefreshing = true,
@@ -144,7 +144,7 @@ class ReportsScreenTest {
 
     @Test
     fun `una lista vuota lo dice invece di restare bianca`() {
-        mostra(ReportsUiState.Ready(reports = emptyList()))
+        show(ReportsUiState.Ready(reports = emptyList()))
 
         compose.onNodeWithText("Nessun rapporto").assertIsDisplayed()
         compose.onNodeWithTag("report-list").assertDoesNotExist()
@@ -152,7 +152,7 @@ class ReportsScreenTest {
 
     @Test
     fun `il filtro mostra solo i rapporti dello stato scelto`() {
-        mostra(
+        show(
             ReportsUiState.Ready(
                 reports = listOf(
                     report("R-1", titolo = "Aperto", status = ReportStatus.OPEN),
@@ -170,11 +170,11 @@ class ReportsScreenTest {
 
     @Test
     fun `il pulsante aggiorna risale l'evento`() {
-        var richieste = 0
+        var requests = 0
         compose.setContent {
             ReportsScreen(
                 state = ReportsUiState.Ready(listOf(report("R-1041"))),
-                onRefresh = { richieste++ },
+                onRefresh = { requests++ },
                 onFilterChange = {},
                 errorText = errorText,
             )
@@ -182,31 +182,31 @@ class ReportsScreenTest {
 
         compose.onNodeWithTag("refresh").performClick()
 
-        assertEquals(1, richieste)
+        assertEquals(1, requests)
     }
 
     @Test
     fun `toccare un chip risale lo stato scelto`() {
-        var scelto: ReportStatus? = null
+        var chosen: ReportStatus? = null
         compose.setContent {
             ReportsScreen(
                 state = ReportsUiState.Ready(listOf(report("R-1041"))),
                 onRefresh = {},
-                onFilterChange = { scelto = it },
+                onFilterChange = { chosen = it },
                 errorText = errorText,
             )
         }
 
         compose.onNodeWithText("Chiusi").performClick()
 
-        assertEquals(ReportStatus.CLOSED, scelto)
+        assertEquals(ReportStatus.CLOSED, chosen)
     }
 
     @Test
     fun `toccare il chip gia' attivo rimuove il filtro`() {
         // Il comportamento non ovvio: il chip fa da interruttore. Senza test,
         // è il genere di dettaglio che si perde alla prima rifattorizzazione.
-        var scelto: ReportStatus? = ReportStatus.CLOSED
+        var chosen: ReportStatus? = ReportStatus.CLOSED
         compose.setContent {
             ReportsScreen(
                 state = ReportsUiState.Ready(
@@ -214,13 +214,13 @@ class ReportsScreenTest {
                     filter = ReportStatus.CLOSED,
                 ),
                 onRefresh = {},
-                onFilterChange = { scelto = it },
+                onFilterChange = { chosen = it },
                 errorText = errorText,
             )
         }
 
         compose.onNodeWithText("Chiusi").performClick()
 
-        assertEquals(null, scelto)
+        assertEquals(null, chosen)
     }
 }

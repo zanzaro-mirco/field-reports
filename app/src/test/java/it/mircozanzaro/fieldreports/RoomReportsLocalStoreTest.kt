@@ -62,15 +62,15 @@ class RoomReportsLocalStoreTest : ReportsLocalStoreContract() {
         val context: Context = ApplicationProvider.getApplicationContext()
         context.deleteDatabase(DB_NAME)
 
-        val primoAvvio = openOnDisk(context)
-        RoomReportsLocalStore(primoAvvio).replaceAll(
+        val firstLaunch = openOnDisk(context)
+        RoomReportsLocalStore(firstLaunch).replaceAll(
             listOf(report("R-1041", createdAt = 900), report("R-1042", createdAt = 100)),
             syncedAtEpochMs = 7_000,
         )
-        primoAvvio.close()
+        firstLaunch.close()
 
-        val secondoAvvio = openOnDisk(context)
-        val store = RoomReportsLocalStore(secondoAvvio)
+        val secondLaunch = openOnDisk(context)
+        val store = RoomReportsLocalStore(secondLaunch)
 
         assertEquals(
             listOf("R-1041", "R-1042"),
@@ -78,7 +78,7 @@ class RoomReportsLocalStoreTest : ReportsLocalStoreContract() {
         )
         assertEquals(7_000L, store.lastSyncEpochMs())
 
-        secondoAvvio.close()
+        secondLaunch.close()
         context.deleteDatabase(DB_NAME)
     }
 

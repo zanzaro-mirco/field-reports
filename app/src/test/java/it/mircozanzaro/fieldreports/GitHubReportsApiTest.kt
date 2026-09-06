@@ -53,60 +53,60 @@ class GitHubReportsApiTest {
     @After
     fun tearDown() = server.shutdown()
 
-    private fun rispondiConLaFixture() {
-        val corpo = javaClass.classLoader!!
+    private fun respondWithFixture() {
+        val body = javaClass.classLoader!!
             .getResourceAsStream("github-issues.json")!!
             .bufferedReader()
             .readText()
-        server.enqueue(MockResponse().setResponseCode(200).setBody(corpo))
+        server.enqueue(MockResponse().setResponseCode(200).setBody(body))
     }
 
     // --- la richiesta --------------------------------------------------------
 
     @Test
     fun `interroga il percorso e i parametri giusti`() = runTest {
-        rispondiConLaFixture()
+        respondWithFixture()
 
         api.fetchReports()
 
-        val richiesta = server.takeRequest()
+        val request = server.takeRequest()
         assertEquals(
             "/repos/zanzaro-mirco/field-reports/issues?state=all&per_page=50",
-            richiesta.path,
+            request.path,
         )
-        assertEquals("GET", richiesta.method)
+        assertEquals("GET", request.method)
     }
 
     // --- la mappatura --------------------------------------------------------
 
     @Test
     fun `mappa una issue in un rapporto`() = runTest {
-        rispondiConLaFixture()
+        respondWithFixture()
 
-        val rapporto = api.fetchReports().first().toDomain()!!
+        val report = api.fetchReports().first().toDomain()!!
 
-        assertEquals("#1041", rapporto.id)
-        assertEquals("Sostituzione contatore trifase", rapporto.title)
-        assertEquals("m-rossi", rapporto.technician)
-        assertEquals("field-reports", rapporto.customer)
-        assertEquals(ReportStatus.OPEN, rapporto.status)
+        assertEquals("#1041", report.id)
+        assertEquals("Sostituzione contatore trifase", report.title)
+        assertEquals("m-rossi", report.technician)
+        assertEquals("field-reports", report.customer)
+        assertEquals(ReportStatus.OPEN, report.status)
     }
 
     @Test
     fun `una data ISO diventa millisecondi`() = runTest {
-        rispondiConLaFixture()
+        respondWithFixture()
 
-        val rapporto = api.fetchReports().first().toDomain()!!
+        val report = api.fetchReports().first().toDomain()!!
 
         // 2026-07-27T08:00:00Z
-        assertEquals(1_785_139_200_000L, rapporto.createdAtEpochMs)
+        assertEquals(1_785_139_200_000L, report.createdAtEpochMs)
     }
 
     @Test
     fun `le pull request non sono rapporti e vengono scartate`() = runTest {
         // L'endpoint delle issue restituisce anche le PR: è la prima
         // imperfezione dell'API vera che il mapper deve assorbire.
-        rispondiConLaFixture()
+        respondWithFixture()
 
         val id = api.fetchReports().mapNotNull(ReportDto::id)
 
@@ -117,36 +117,36 @@ class GitHubReportsApiTest {
     @Test
     fun `l'etichetta in progress diventa lo stato IN_PROGRESS`() = runTest {
         // GitHub non ha un terzo stato: va dedotto da un'etichetta.
-        rispondiConLaFixture()
+        respondWithFixture()
 
-        val rapporto = api.fetchReports().map { it.toDomain()!! }.first { it.id == "#1042" }
+        val report = api.fetchReports().map { it.toDomain()!! }.first { it.id == "#1042" }
 
-        assertEquals(ReportStatus.IN_PROGRESS, rapporto.status)
+        assertEquals(ReportStatus.IN_PROGRESS, report.status)
     }
 
     @Test
     fun `una issue chiusa resta chiusa anche se etichettata in progress`() = runTest {
         // L'etichetta racconta com'era la lavorazione, non com'è finita.
-        rispondiConLaFixture()
+        respondWithFixture()
 
-        val rapporto = api.fetchReports().map { it.toDomain()!! }.first { it.id == "#1043" }
+        val report = api.fetchReports().map { it.toDomain()!! }.first { it.id == "#1043" }
 
-        assertEquals(ReportStatus.CLOSED, rapporto.status)
+        assertEquals(ReportStatus.CLOSED, report.status)
     }
 
     @Test
     fun `campi mancanti o malformati non fanno fallire l'intera lista`() = runTest {
         // La issue #1045 ha titolo nullo, utente nullo e una data illeggibile.
         // Deve degradare da sola, senza portarsi dietro le altre quattro.
-        rispondiConLaFixture()
+        respondWithFixture()
 
-        val rapporti = api.fetchReports().mapNotNull(ReportDto::toDomain)
-        val degradato = rapporti.first { it.id == "#1045" }
+        val reports = api.fetchReports().mapNotNull(ReportDto::toDomain)
+        val degraded = reports.first { it.id == "#1045" }
 
-        assertEquals(4, rapporti.size)
-        assertEquals("Senza titolo", degradato.title)
-        assertEquals("", degradato.technician)
-        assertEquals(0L, degradato.createdAtEpochMs)
+        assertEquals(4, reports.size)
+        assertEquals("Senza titolo", degraded.title)
+        assertEquals("", degraded.technician)
+        assertEquals(0L, degraded.createdAtEpochMs)
     }
 
     @Test
@@ -163,27 +163,27 @@ class GitHubReportsApiTest {
         // È il caso reale del limite di richieste di GitHub senza token.
         server.enqueue(MockResponse().setResponseCode(403).setBody("""{"message":"rate limit"}"""))
 
-        val errore = runCatching { api.fetchReports() }.exceptionOrNull()
+        val thrown = runCatching { api.fetchReports() }.exceptionOrNull()
 
-        assertTrue(errore is HttpException)
-        assertEquals(403, (errore as HttpException).code())
+        assertTrue(thrown is HttpException)
+        assertEquals(403, (thrown as HttpException).code())
     }
 
     @Test
     fun `un 500 propaga HttpException con il codice`() = runTest {
         server.enqueue(MockResponse().setResponseCode(500))
 
-        val errore = runCatching { api.fetchReports() }.exceptionOrNull()
+        val thrown = runCatching { api.fetchReports() }.exceptionOrNull()
 
-        assertEquals(500, (errore as HttpException).code())
+        assertEquals(500, (thrown as HttpException).code())
     }
 
     @Test
     fun `un JSON malformato non passa per un errore di rete`() = runTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody("{ non sono una lista"))
 
-        val errore = runCatching { api.fetchReports() }.exceptionOrNull()
+        val thrown = runCatching { api.fetchReports() }.exceptionOrNull()
 
-        assertNull("non deve essere una HttpException", errore as? HttpException)
+        assertNull("non deve essere una HttpException", thrown as? HttpException)
     }
 }

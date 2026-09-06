@@ -68,7 +68,7 @@ class ReportCardScreenshotTest {
      * fallisce comunque, perché Roborazzi la tratta come differenza
      * strutturale e la soglia non la riguarda.
      */
-    private val opzioni = RoborazziOptions(
+    private val options = RoborazziOptions(
         compareOptions = RoborazziOptions.CompareOptions(changeThreshold = 0.003f),
     )
 
@@ -81,7 +81,7 @@ class ReportCardScreenshotTest {
         technician = "M. Rossi",
     )
 
-    private fun fotografa(status: ReportStatus, nome: String) {
+    private fun capture(status: ReportStatus, name: String) {
         compose.setContent {
             MaterialTheme {
                 ReportCard(
@@ -94,23 +94,23 @@ class ReportCardScreenshotTest {
             }
         }
         compose.onRoot().captureRoboImage(
-            filePath = "src/test/screenshots/$nome.png",
-            roborazziOptions = opzioni,
+            filePath = "src/test/screenshots/$name.png",
+            roborazziOptions = options,
         )
     }
 
     @Test
     fun `card di un rapporto aperto`() {
-        fotografa(ReportStatus.OPEN, "report-card-aperto")
+        capture(ReportStatus.OPEN, "report-card-aperto")
     }
 
     @Test
     fun `card di un rapporto in corso`() {
-        fotografa(ReportStatus.IN_PROGRESS, "report-card-in-corso")
+        capture(ReportStatus.IN_PROGRESS, "report-card-in-corso")
     }
 
     @Test
     fun `card di un rapporto chiuso`() {
-        fotografa(ReportStatus.CLOSED, "report-card-chiuso")
+        capture(ReportStatus.CLOSED, "report-card-chiuso")
     }
 }

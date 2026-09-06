@@ -29,7 +29,7 @@ class ErrorMapperTest {
     private fun httpException(codice: Int) = HttpException(
         Response.error<Any>(
             codice,
-            """{"message":"errore"}""".toResponseBody("application/json".toMediaType()),
+            """{"message":"mapped"}""".toResponseBody("application/json".toMediaType()),
         ),
     )
 
@@ -66,18 +66,18 @@ class ErrorMapperTest {
 
     @Test
     fun `una risposta illeggibile non mostra il messaggio della libreria`() {
-        val errore = mapper.map(SerializationException("Unexpected JSON token at offset 12"))
+        val mapped = mapper.map(SerializationException("Unexpected JSON token at offset 12"))
 
-        assertTrue(errore is DomainError.Unknown)
-        val messaggio = (errore as DomainError.Unknown).message
-        assertEquals("Risposta del servizio non riconosciuta.", messaggio)
-        assertTrue("non deve trapelare il gergo della libreria", !messaggio.contains("JSON"))
+        assertTrue(mapped is DomainError.Unknown)
+        val message = (mapped as DomainError.Unknown).message
+        assertEquals("Risposta del servizio non riconosciuta.", message)
+        assertTrue("non deve trapelare il gergo della libreria", !message.contains("JSON"))
     }
 
     @Test
     fun `un errore imprevisto conserva il proprio messaggio`() {
-        val errore = mapper.map(IllegalStateException("stato incoerente"))
+        val mapped = mapper.map(IllegalStateException("stato incoerente"))
 
-        assertEquals(DomainError.Unknown("stato incoerente"), errore)
+        assertEquals(DomainError.Unknown("stato incoerente"), mapped)
     }
 }
