@@ -111,15 +111,15 @@ jobs:
           arch: x86_64
           target: default
           script: |
+            # Ogni riga di questo script viene eseguita da sola, con un `sh -c`
+            # suo: un `if` su piu' righe verrebbe spezzato, e la prima riga da
+            # sola non e' un comando valido. Percio' il controllo sta su una
+            # riga, con `||` invece che con un blocco.
             adb install -r "field-reports-$VERSIONE.apk"
             adb logcat -c
             adb shell monkey -p it.mircozanzaro.fieldreports -c android.intent.category.LAUNCHER 1
             sleep 10
-            if ! adb shell pidof it.mircozanzaro.fieldreports > /dev/null; then
-              echo "::error::L'applicazione non è viva dieci secondi dopo l'avvio. Probabile che R8 abbia rimosso qualcosa che serve: guarda il log qui sotto."
-              adb logcat -d -b crash
-              exit 1
-            fi
+            adb shell pidof it.mircozanzaro.fieldreports > /dev/null || { echo "::error::L'applicazione non è viva dieci secondi dopo l'avvio. Probabile che R8 abbia rimosso qualcosa che serve: guarda il log qui sotto."; adb logcat -d -b crash; exit 1; }
             echo "Viva dopo l'avvio."
 
       - name: Release con l'APK allegato
