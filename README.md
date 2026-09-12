@@ -176,7 +176,7 @@ invece che su un singolo valore finale.
 ## Installarla senza compilarla
 
 Ogni tag `v*` produce una
-[Release](https://github.com/zanzaro-mirco/field_reports_compose/releases) con un APK **firmato**
+[Release](https://github.com/zanzaro-mirco/field-reports/releases) con un APK **firmato**
 allegato: si scarica dal telefono e si installa, senza Android Studio e senza clonare
 niente.
 
