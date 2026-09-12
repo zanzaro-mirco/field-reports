@@ -239,6 +239,16 @@ continui a fallire, è ciò che la distingue da quel gesto.
 
 ## Dove ho consapevolmente semplificato
 
+- **La firma di rilascio ripiega su quella di debug quando la chiave non c'è.**
+  L'alternativa era far fallire la compilazione, e avrebbe reso il repository compilabile
+  in rilascio solo da me. Il prezzo del ripiego è che `BUILD SUCCESSFUL` non significa più
+  «APK distribuibile»: lo paga la pipeline di rilascio, che legge il certificato dell'APK e
+  si ferma su `CN=Android Debug`. Verificato togliendo la chiave e ricompilando — l'APK
+  esce firmato di debug senza un avviso.
+- **La chiave è autofirmata e vale per entrambi i progetti dimostrativi.** Non è una
+  identità verificata da nessuno: dice solo che due APK con lo stesso nome di pacchetto
+  vengono dalla stessa mano. Per il Play Store servirebbe altro, e non è dove questi
+  progetti vanno.
 - **Niente Hilt.** `AppContainer` scritto a mano è sufficiente per un grafo di quattro
   oggetti. Hilt si giustifica quando la costruzione a mano diventa il problema, non prima.
 - **Nessun use case fra ViewModel e repository.** Con un'unica operazione di lettura

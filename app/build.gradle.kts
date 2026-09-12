@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -7,6 +9,27 @@ plugins {
     alias(libs.plugins.roborazzi)
 }
 
+// La chiave di firma non sta nel repository, e non ci sta nemmeno il suo
+// percorso. Arriva da `keystore.properties` quando si compila a mano, oppure
+// dalle variabili d'ambiente che la pipeline riempie dai segreti del
+// repository. `keystore.properties.esempio` accanto dice quali valori servono.
+val keystoreProperties = Properties().apply {
+    val file = rootProject.file("keystore.properties")
+    if (file.exists()) file.inputStream().use(::load)
+}
+
+fun signingValue(property: String, variable: String): String? =
+    keystoreProperties.getProperty(property) ?: System.getenv(variable)
+
+val releaseStore: String? = signingValue("storeFile", "KEYSTORE_PATH")
+
+// Il numero di versione arriva dal tag che ha fatto partire il rilascio, e non
+// e' scritto a mano qui: due posti che dichiarano la versione sono due posti
+// che prima o poi si contraddicono. I valori predefiniti servono a tutte le
+// compilazioni che non sono un rilascio.
+val appVersionName: String = providers.gradleProperty("appVersionName").getOrElse("0.1.0")
+val appVersionCode: Int = providers.gradleProperty("appVersionCode").getOrElse("1").toInt()
+
 android {
     namespace = "it.mircozanzaro.fieldreports"
     compileSdk = 34
@@ -15,13 +38,36 @@ android {
         applicationId = "it.mircozanzaro.fieldreports"
         minSdk = 24
         targetSdk = 34
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = appVersionCode
+        versionName = appVersionName
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        // Dichiarata solo se la chiave c'e' davvero: una configurazione con i
+        // campi vuoti fallirebbe con un messaggio di Gradle invece che con uno
+        // che spiega cosa manca.
+        if (releaseStore != null) {
+            create("release") {
+                storeFile = file(releaseStore)
+                storePassword = signingValue("storePassword", "KEYSTORE_PASSWORD")
+                keyAlias = signingValue("keyAlias", "KEY_ALIAS")
+                keyPassword = signingValue("keyPassword", "KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
         release {
+            // Senza la chiave si ripiega sulla firma di debug, perche' chi
+            // clona il repository deve poter compilare in rilascio senza avere
+            // una chiave che e' mia. Il rischio del ripiego - un APK firmato di
+            // debug che finisce in una Release credendolo buono - non e'
+            // lasciato al caso: la pipeline legge il certificato dell'APK prima
+            // di pubblicarlo, e si ferma se trova quello di debug.
+            signingConfig = signingConfigs.findByName("release")
+                ?: signingConfigs.getByName("debug")
+
             isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

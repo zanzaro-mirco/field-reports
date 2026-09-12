@@ -1,0 +1,117 @@
+name: Release
+
+# Solo dai tag. Una Release nasce da una decisione presa scrivendo `git tag`,
+# non da ogni push su `main`: il numero di versione è la decisione, e va presa
+# una volta sola in un posto solo.
+on:
+  push:
+    tags:
+      - 'v*'
+
+# Il token predefinito di GitHub Actions è in sola lettura. Creare una Release e
+# allegarci un file richiede di chiederlo qui, esplicitamente.
+permissions:
+  contents: write
+
+# Qui non si rieseguono i test: girano su `main` a ogni push, e un tag si mette
+# su un commit che li ha già passati. Quello che questo lavoro verifica è
+# l'altra metà, che nessun test copre — che l'APK sia firmato con la chiave
+# giusta e che parta dopo essere passato dall'offuscatore.
+jobs:
+  apk-firmato:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v5
+
+      # Il segreto contiene il keystore in base64, perché un segreto di GitHub
+      # è una stringa e un keystore è un file binario.
+      - name: Ricostruisci la chiave dal segreto
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::Manca il segreto KEYSTORE_BASE64. Senza, la compilazione ripiegherebbe sulla chiave di debug e produrrebbe una Release che non è un rilascio."
+            exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/portfolio.jks"
+
+      # `v1.2.0` diventa `1.2.0`. Il nome della versione viene da qui e da
+      # nessun altro posto; il numero progressivo è quello dell'esecuzione,
+      # che cresce da solo e non si ripete mai.
+      - name: La versione viene dal tag
+        run: echo "VERSIONE=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+
+      - name: APK di rilascio
+        env:
+          KEYSTORE_PATH: ${{ runner.temp }}/portfolio.jks
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          ./gradlew assembleRelease --no-daemon \
+            -PappVersionName="$VERSIONE" \
+            -PappVersionCode="${{ github.run_number }}"
+          mv app/build/outputs/apk/release/app-release.apk "field-reports-$VERSIONE.apk"
+
+      # Il passo che rende il ripiego sicuro. Senza chiave, Gradle non fallisce:
+      # firma con quella di debug e dice BUILD SUCCESSFUL. Un APK così si
+      # installa, sembra un rilascio e non lo è — e sarebbe esattamente il
+      # genere di cosa che nessuno nota finché non conta. Qui si legge il
+      # certificato vero dell'APK, non la configurazione che avrebbe dovuto
+      # produrlo.
+      - name: Firmato con la chiave giusta, non con quella di debug
+        run: |
+          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          CERTIFICATO=$("$APKSIGNER" verify --print-certs "field-reports-$VERSIONE.apk")
+          echo "$CERTIFICATO"
+          if echo "$CERTIFICATO" | grep -q "CN=Android Debug"; then
+            echo "::error::L'APK è firmato con la chiave di debug: i segreti non sono arrivati fino a Gradle."
+            exit 1
+          fi
+
+      - name: Abilita KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      # Qui questo passo vale doppio. La compilazione di rilascio passa da R8,
+      # che rimuove il codice che sembra non servire: quello che si raggiunge
+      # solo per riflessione — i serializzatori di kotlinx.serialization, le
+      # interfacce di Retrofit — è precisamente ciò che R8 non vede. Un APK di
+      # rilascio che non parte, mentre quello di debug parte, è il classico
+      # difetto che nessuna suite di test intercetta.
+      - name: Si installa e parte
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: default
+          script: |
+            adb install -r "field-reports-$VERSIONE.apk"
+            adb logcat -c
+            adb shell monkey -p it.mircozanzaro.fieldreports -c android.intent.category.LAUNCHER 1
+            sleep 10
+            if ! adb shell pidof it.mircozanzaro.fieldreports > /dev/null; then
+              echo "::error::L'applicazione non è viva dieci secondi dopo l'avvio. Probabile che R8 abbia rimosso qualcosa che serve: guarda il log qui sotto."
+              adb logcat -d -b crash
+              exit 1
+            fi
+            echo "Viva dopo l'avvio."
+
+      - name: Release con l'APK allegato
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes \
+            "field-reports-$VERSIONE.apk"

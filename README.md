@@ -173,6 +173,24 @@ fallirebbe mai — una rete di sicurezza finta è peggio di nessuna rete.
 Gli stati si osservano con **Turbine**, che permette di asserire su un flusso di emissioni
 invece che su un singolo valore finale.
 
+## Installarla senza compilarla
+
+Ogni tag `v*` produce una
+[Release](https://github.com/zanzaro-mirco/field_reports_compose/releases) con un APK **firmato**
+allegato: si scarica dal telefono e si installa, senza Android Studio e senza clonare
+niente.
+
+La chiave è stata creata apposta per i progetti dimostrativi e non sta nel repository —
+Android chiederà di autorizzare l'installazione, perché l'APK non viene dal Play Store. Il
+nome del file porta la versione del tag: `field-reports-1.0.0.apk`.
+
+Perché la pipeline legge il certificato dell'APK prima di pubblicarlo: senza la chiave la
+compilazione **non fallisce**, ripiega sulla firma di debug e dice `BUILD SUCCESSFUL`. È
+un ripiego voluto — chi clona il repository deve poter compilare in rilascio senza avere
+una chiave altrui — ma è anche il modo esatto in cui una Release potrebbe non essere un
+rilascio senza che nessuno se ne accorga. Il controllo guarda l'APK, non la
+configurazione che avrebbe dovuto produrlo, e si ferma se trova `CN=Android Debug`.
+
 ## Requisiti
 
 - JDK 17
@@ -189,6 +207,7 @@ invece che su un singolo valore finale.
 - [ ] Sincronizzazione in background quando la rete torna
 - [ ] Hilt al posto della factory scritta a mano, quando i grafi cresceranno
 - [x] Compose UI test e screenshot test sulla schermata
+- [x] Release firmate e installabili, con la verifica che l'APK offuscato parta davvero
 - [ ] Schermata di dettaglio con navigazione
 - [ ] Prestazioni misurate: Macrobenchmark e Baseline Profiles
 
