@@ -40,7 +40,22 @@ jobs:
             echo "::error::Manca il segreto KEYSTORE_BASE64. Senza, la compilazione ripiegherebbe sulla chiave di debug e produrrebbe una Release che non è un rilascio."
             exit 1
           fi
-          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/portfolio.jks"
+          # `tr` prima di `base64`: il segreto lo ha scritto una persona, e a
+          # seconda di come ci e' arrivato puo' portarsi dietro un a capo, un
+          # ritorno a capo di Windows o uno spazio in coda. `base64 -d` tollera
+          # gli a capo e non tollera il resto, e il modo in cui fallirebbe -
+          # "invalid input" su un segreto che sembra giusto - non direbbe a
+          # nessuno che il problema e' un carattere invisibile.
+          printf '%s' "$KEYSTORE_BASE64" | tr -d '[:space:]' | base64 -d > "$RUNNER_TEMP/portfolio.jks"
+
+          # Un keystore PKCS12 comincia con 0x30 0x82. Se il segreto fosse
+          # troncato - il rischio vero di seimila caratteri incollati a mano -
+          # qui ci sarebbe un file di byte a caso, e l'errore arriverebbe molto
+          # piu' avanti da Gradle, parlando d'altro.
+          if ! head -c 2 "$RUNNER_TEMP/portfolio.jks" | od -An -tx1 | grep -q "30 82"; then
+            echo "::error::Il segreto KEYSTORE_BASE64 non si decodifica in un keystore: probabile che sia stato troncato quando e' stato incollato."
+            exit 1
+          fi
 
       # `v1.2.0` diventa `1.2.0`. Il nome della versione viene da qui e da
       # nessun altro posto; il numero progressivo è quello dell'esecuzione,
