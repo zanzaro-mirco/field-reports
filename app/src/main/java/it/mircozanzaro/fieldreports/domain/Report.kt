@@ -42,4 +42,9 @@ data class Report(
     val status: ReportStatus,
     val createdAtEpochMs: Long,
     val technician: String,
+    /**
+     * Il testo libero dell'intervento. Vuoto quando la sorgente non ne ha uno:
+     * sulle issue di GitHub il corpo è facoltativo, e spesso manca davvero.
+     */
+    val description: String = "",
 )

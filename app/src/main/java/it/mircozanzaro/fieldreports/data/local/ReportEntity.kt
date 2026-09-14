@@ -29,6 +29,7 @@ data class ReportEntity(
     val status: String,
     @ColumnInfo(name = "created_at_epoch_ms") val createdAtEpochMs: Long,
     val technician: String,
+    val description: String,
 )
 
 fun ReportEntity.toDomain(): Report = Report(
@@ -38,6 +39,7 @@ fun ReportEntity.toDomain(): Report = Report(
     status = ReportStatus.fromRaw(status),
     createdAtEpochMs = createdAtEpochMs,
     technician = technician,
+    description = description,
 )
 
 fun Report.toEntity(): ReportEntity = ReportEntity(
@@ -47,4 +49,5 @@ fun Report.toEntity(): ReportEntity = ReportEntity(
     status = status.name,
     createdAtEpochMs = createdAtEpochMs,
     technician = technician,
+    description = description,
 )

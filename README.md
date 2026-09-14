@@ -1,8 +1,8 @@
 # field-reports
 
 App Android in **Kotlin + Jetpack Compose** per la consultazione di rapporti di intervento
-tecnico: lista, filtri per stato, cache locale consultabile offline, gestione esplicita degli
-stati di caricamento ed errore.
+tecnico: lista, filtri per stato, dettaglio del rapporto, cache locale consultabile offline,
+gestione esplicita degli stati di caricamento ed errore.
 
 [![CI](https://github.com/zanzaro-mirco/field-reports/actions/workflows/ci.yml/badge.svg)](https://github.com/zanzaro-mirco/field-reports/actions/workflows/ci.yml)
 
@@ -36,10 +36,22 @@ posto giusto.
 **I dati sono mappati, non inventati.**
 Nessuna API pubblica restituisce rapporti di intervento tecnico, e fabbricarli dentro un mapper
 sarebbe stato un segnale peggiore che non averli. L'app legge le issue di questo stesso
-repository: `title` al titolo, `state` allo stato, `user.login` al tecnico. Il valore sta nelle
-imperfezioni che il mapper deve assorbire — l'endpoint restituisce anche le pull request, lo
-stato "in lavorazione" non esiste su GitHub e va dedotto da un'etichetta, le date arrivano in
-ISO-8601. Un'API vera insegna più di un JSON con lo schema perfetto.
+repository: `title` al titolo, `body` alla descrizione, `state` allo stato, `user.login` al
+tecnico. Il valore sta nelle imperfezioni che il mapper deve assorbire — l'endpoint restituisce
+anche le pull request, lo stato "in lavorazione" non esiste su GitHub e va dedotto da
+un'etichetta, le date arrivano in ISO-8601, il corpo delle issue arriva con gli a capo di
+Windows. Un'API vera insegna più di un JSON con lo schema perfetto.
+
+**Un tocco naviga dalla UI; un evento nasce solo dove decide il ViewModel.**
+Toccare una card apre il dettaglio direttamente, senza passare dal ViewModel: non c'è niente da
+decidere, e un giro fino al ViewModel e ritorno sarebbe solo un posto in più in cui la
+navigazione può ripetersi. L'unico evento dell'app nasce dove la decisione è davvero del
+ViewModel — il rapporto aperto sparisce perché una sincronizzazione lo ha tolto, e si torna
+alla lista con un avviso. Quell'evento viaggia su un `Channel`, e non su uno `StateFlow` o su
+uno `SharedFlow`: il primo lo ridarebbe dopo una rotazione, il secondo lo perderebbe se
+arrivasse proprio durante la rotazione. Ognuno dei due errori ha il suo test, e il criterio
+di fatto — si ruota lo schermo durante la navigazione e non succede due volte — è un test
+Robolectric, non una prova a mano.
 
 **La cache locale è la sorgente unica, non un ripiego.**
 Room sta sotto tutto: la UI legge sempre dal database, e la rete si limita ad aggiornarlo.
@@ -115,9 +127,13 @@ app/src/main/java/it/mircozanzaro/fieldreports/
     DispatcherProvider.kt
     Clock.kt  StalenessPolicy.kt   il tempo e quando i dati sono vecchi
   ui/
+    FieldReportsNavHost.kt     grafo di navigazione, rotte tipizzate
     ReportsUiState.kt          sealed interface
     ReportsViewModel.kt        StateFlow, viewModelScope
     ReportsScreen.kt           Compose, state hoisting
+    ReportDetailUiState.kt     stato del dettaglio + l'unico evento
+    ReportDetailViewModel.kt   l'evento su Channel
+    ReportDetailScreen.kt      il dettaglio
     ErrorTextProvider.kt       errore di dominio -> testo per l'utente
 app/src/test/                  test del ViewModel e del livello dati, senza Android
 ```
@@ -169,6 +185,16 @@ fallirebbe mai — una rete di sicurezza finta è peggio di nessuna rete.
 | `il limite di richieste di GitHub diventa un errore di servizio` | Il ramo `DomainError.Server` ha finalmente chi lo produce |
 | `un timeout resta un timeout e non diventa un errore di rete` | `SocketTimeoutException` estende `IOException`: l'ordine dei rami conta |
 | `un orologio che torna indietro non congela la cache` | Il caso limite che nessuno prova finché non capita |
+| **`ruotare sul dettaglio non ripete la navigazione`** | Il criterio della navigazione: dopo la rotazione basta un solo "indietro" per tornare alla lista |
+| `un doppio tocco sulla card apre un dettaglio solo` | Il secondo tocco arriva mentre la lista sta già uscendo, e viene scartato |
+| `un doppio tocco su indietro non toglie anche la lista` | Senza, lo schermo resterebbe vuoto |
+| **`un rapporto rimosso riporta alla lista una volta sola, anche ruotando`** | L'evento del dettaglio, verificato sul grafo vero |
+| `l'evento arriva una volta sola anche quando l'osservatore riparte` | Fallisce se l'evento sta su uno `StateFlow` |
+| `un evento emesso mentre nessuno ascolta non si perde` | Fallisce se l'evento sta su uno `SharedFlow` senza replay |
+| `le scritture successive in cache non ripetono l'evento` | Room riemette a ogni scrittura, anche quando il rapporto non è cambiato |
+| `un id che la cache non ha mai avuto e uno stato, non un evento` | Non c'è niente da cui tornare indietro: lo schermo resta e spiega |
+| `senza descrizione e senza data lo dice, invece di inventare` | Una data assente non diventa «1 gennaio 1970» |
+| `una cache della versione 1 si butta intera, data di sincronizzazione compresa` | Il primo cambio di schema: una cache vuota con una data fresca sarebbe creduta valida |
 
 Gli stati si osservano con **Turbine**, che permette di asserire su un flusso di emissioni
 invece che su un singolo valore finale.
@@ -208,8 +234,12 @@ configurazione che avrebbe dovuto produrlo, e si ferma se trova `CN=Android Debu
 - [ ] Hilt al posto della factory scritta a mano, quando i grafi cresceranno
 - [x] Compose UI test e screenshot test sulla schermata
 - [x] Release firmate e installabili, con la verifica che l'APK offuscato parta davvero
-- [ ] Schermata di dettaglio con navigazione
+- [x] Schermata di dettaglio con navigazione
 - [ ] Prestazioni misurate: Macrobenchmark e Baseline Profiles
+
+Il form di modifica, che stava in questa lista insieme al dettaglio, non arriverà: l'app legge
+le issue di GitHub senza autenticazione e non può scriverle. Le ragioni sono in
+[ARCHITECTURE.md](ARCHITECTURE.md), fra le semplificazioni.
 
 ## Licenza
 

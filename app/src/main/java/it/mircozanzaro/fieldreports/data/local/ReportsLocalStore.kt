@@ -4,6 +4,7 @@ import it.mircozanzaro.fieldreports.domain.Report
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 
 /**
  * La cache locale, vista dal repository.
@@ -16,6 +17,8 @@ import kotlinx.coroutines.flow.asStateFlow
  *
  * **Contratto**, valido per ogni implementazione:
  * - [observeReports] emette subito lo stato corrente e poi a ogni scrittura;
+ * - [observeReport] fa lo stesso per un rapporto solo, ed emette `null` finché
+ *   non c'è — anche dopo esserci stato;
  * - i rapporti escono ordinati dal più recente al più vecchio;
  * - [replaceAll] è atomica: o si vedono tutti i dati nuovi, o tutti i vecchi.
  *
@@ -26,6 +29,8 @@ import kotlinx.coroutines.flow.asStateFlow
 interface ReportsLocalStore {
 
     fun observeReports(): Flow<List<Report>>
+
+    fun observeReport(id: String): Flow<Report?>
 
     /** `null` se non è mai avvenuta una sincronizzazione riuscita. */
     suspend fun lastSyncEpochMs(): Long?
@@ -51,6 +56,9 @@ class InMemoryReportsLocalStore(
     private var lastSync: Long? = initialSyncEpochMs
 
     override fun observeReports(): Flow<List<Report>> = reports.asStateFlow()
+
+    override fun observeReport(id: String): Flow<Report?> =
+        reports.map { list -> list.firstOrNull { it.id == id } }
 
     override suspend fun lastSyncEpochMs(): Long? = lastSync
 

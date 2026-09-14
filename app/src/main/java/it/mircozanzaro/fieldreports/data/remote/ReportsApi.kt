@@ -42,6 +42,8 @@ class FakeReportsApi(
             status = "OPEN",
             createdAt = 1_753_600_000_000,
             technician = "M. Rossi",
+            description = "Il contatore segna consumi anche a impianto spento. " +
+                "Sostituito con un trifase e sigillato.",
         ),
         ReportDto(
             id = "R-1042",
@@ -50,6 +52,7 @@ class FakeReportsApi(
             status = "IN_PROGRESS",
             createdAt = 1_753_500_000_000,
             technician = "L. Bianchi",
+            description = "Il lettore non riconosce i tag della corsia 4.",
         ),
         ReportDto(
             id = "R-1043",

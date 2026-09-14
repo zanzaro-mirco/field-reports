@@ -26,9 +26,13 @@ data/
   Clock.kt                     il tempo come dipendenza
   StalenessPolicy.kt           quando i dati in cache sono da rinfrescare
 ui/
+  FieldReportsNavHost.kt       grafo di navigazione, rotte tipizzate, ViewModel per destinazione
   ReportsUiState.kt            sealed interface
   ReportsViewModel.kt          StateFlow, viewModelScope
   ReportsScreen.kt             Compose, state hoisting
+  ReportDetailUiState.kt       stato del dettaglio + l'unico evento dell'app
+  ReportDetailViewModel.kt     l'evento su Channel
+  ReportDetailScreen.kt        il dettaglio, e la raccolta dell'evento legata al ciclo di vita
   ErrorTextProvider.kt         errore di dominio -> testo per l'utente
 ```
 
@@ -75,6 +79,90 @@ la scelta dell'utente mentre sta guardando la lista. Ora il filtro è un `Mutabl
 separato, combinato con i dati al momento di comporre lo stato — e c'è un test che verifica
 che sopravviva a un refresh.
 
+## Navigazione, e l'unico evento dell'app
+
+Due destinazioni, `ReportListDestination` e `ReportDetailDestination(reportId)`, dichiarate
+come classi serializzabili: sono le rotte tipizzate di Navigation 2.8. Un argomento sbagliato
+è un errore di compilazione, e non una stringa con un segnaposto che si scopre storta al
+primo tocco.
+
+**L'argomento è l'id, non il rapporto.** Gli argomenti di navigazione finiscono nello stato
+salvato dell'Activity, che ha un limite di dimensione; e un rapporto copiato lì sarebbe una
+seconda sorgente, ferma al momento del tocco. Con l'id il dettaglio legge dalla cache con
+`observeReport`, e un aggiornamento arrivato mentre lo si guarda compare da solo. È la regola
+della sorgente unica, applicata anche alla navigazione.
+
+**Il tocco non passa dal ViewModel.** Il piano chiedeva di mandare la navigazione dal
+ViewModel alla UI come evento su `SharedFlow`. La guida Android corrente dice il contrario, e
+qui ha ragione: il tocco su una card non ha niente da decidere, e un giro fino al ViewModel e
+ritorno aggiunge soltanto un posto in cui l'evento può ripetersi o perdersi. La card chiama
+`navigate` direttamente. L'unico controllo è sul doppio tocco: si naviga solo se la lista è
+ancora `RESUMED`, perché il secondo tocco arriva quando la lista sta già uscendo e aprirebbe
+un secondo dettaglio sopra il primo. Il pulsante indietro fa lo stesso con
+`dropUnlessResumed`, altrimenti il secondo tocco toglierebbe anche la lista.
+
+**L'evento esiste dove la decisione è del ViewModel.** Se una sincronizzazione toglie il
+rapporto aperto — la issue è stata cancellata o spostata — il dettaglio deve tornare alla
+lista una volta, e la lista deve dire perché. Lo sa solo chi osserva la cache, quindi nasce
+in `ReportDetailViewModel`. Qui un evento serve davvero, e conta il canale su cui viaggia. Una
+rotazione distrugge l'osservatore della UI e ne crea uno nuovo, mentre il ViewModel resta:
+
+| Canale | L'osservatore riparte dopo aver gestito l'evento | L'evento nasce mentre nessuno ascolta |
+|---|---|---|
+| `StateFlow` | lo riceve di nuovo: si torna indietro due volte | conservato |
+| `SharedFlow` senza replay | non lo riceve di nuovo | **perso**: lo schermo resta su un rapporto che non esiste |
+| `Channel` | non lo riceve di nuovo | tenuto finché qualcuno lo prende |
+
+La UI raccoglie gli eventi con `repeatOnLifecycle(STARTED)` e su `Dispatchers.Main.immediate`.
+Con l'app in secondo piano l'evento aspetta nel canale; e fra il momento in cui esce dal
+canale e quello in cui viene gestito non passa un giro del ciclo principale, in cui una
+rotazione potrebbe infilarsi e perderlo.
+
+**"Non trovato" è uno stato, "rimosso" è un evento.** Un id che la cache non ha mai avuto
+succede quando la navigazione viene ripristinata dopo che il sistema ha chiuso l'app, su una
+cache che nel frattempo è cambiata. Non c'è niente da cui tornare indietro: lo schermo resta e
+spiega, e `ReportDetailUiState.NotFound` lo rappresenta. Un rapporto che sparisce mentre lo si
+guarda, invece, fa andare via lo schermo, e andarsene succede una volta sola. Dopo l'evento lo
+stato resta sull'ultimo rapporto visto, così durante l'animazione di uscita non lampeggia un
+"non trovato".
+
+**`distinctUntilChanged`, per Room.** Una query osservata viene rieseguita a ogni scrittura
+sulla tabella, anche se il rapporto osservato non è cambiato. Senza, la sincronizzazione
+successiva a una rimozione — di nuovo `null` — produrrebbe un secondo evento.
+
+### Cosa ha detto la falsificazione
+
+Ogni difesa è stata tolta da sola, con il resto intatto, per vedere quale test se ne accorge:
+
+| Tolto | Test che fallisce |
+|---|---|
+| il `Channel`, al suo posto uno `StateFlow` | `l'evento arriva una volta sola anche quando l'osservatore riparte` |
+| il `Channel`, al suo posto uno `SharedFlow` senza replay | `un evento emesso mentre nessuno ascolta non si perde` |
+| `distinctUntilChanged` | `le scritture successive in cache non ripetono l'evento` |
+| il controllo `RESUMED` sul tocco della card | `un doppio tocco sulla card apre un dettaglio solo` |
+| `dropUnlessResumed` sul pulsante indietro | `un doppio tocco su indietro non toglie anche la lista` |
+| `fallbackToDestructiveMigration` | `una cache della versione 1 si butta intera, data di sincronizzazione compresa` |
+| il tocco che naviga, al suo posto uno stato nel ViewModel della lista | tutti e cinque i test di navigazione |
+
+Ogni difesa ha un test che fallisce quando la si toglie. Tre cose però le ha dette la
+falsificazione, non il codice.
+
+**La prima versione del test sul doppio tocco non provava niente.** Mandava due tocchi come
+sequenza di input, e tolto il controllo restava verde. Ora invoca l'azione di click due volte
+senza fotogrammi in mezzo, e senza il controllo fallisce. Un test scritto per una difesa e
+mai visto fallire resta un'ipotesi.
+
+**Il test sul grafo vero non vede il canale dell'evento.** Con uno `StateFlow` o uno
+`SharedFlow` al posto del `Channel`, `un rapporto rimosso riporta alla lista una volta sola,
+anche ruotando` resta verde. Nel grafo il dettaglio viene tolto mentre gestisce l'evento, e
+dopo non c'è più un osservatore che possa riceverlo di nuovo. I due errori li vedono i test
+del ViewModel, che riproducono l'osservatore che riparte e quello che manca: non sono un
+doppione del test sul grafo, sono gli unici che se ne accorgono.
+
+**L'errore che il piano temeva rompe tutto, non solo la rotazione.** Con la navigazione
+tenuta come stato nel ViewModel della lista falliscono anche i test senza rotazione: basta
+tornare alla lista, e lo stato ancora valorizzato rimanda al dettaglio.
+
 ## MVVM, in concreto
 
 - La View osserva `StateFlow`, non chiama il ViewModel per leggere.
@@ -98,6 +186,8 @@ che sopravviva a un refresh.
 | **Provider dei dispatcher** | `DispatcherProvider` | Sostituibili tutti insieme nei test |
 | **Orologio iniettato** | `Clock` | "I dati sono vecchi di sei minuti" si testa senza aspettare sei minuti |
 | **State hoisting verificato** | `ReportsScreenTest` | La schermata si monta su uno stato costruito a mano, senza ViewModel: è la prova che la separazione regge |
+| **Rotte tipizzate** | `FieldReportsNavHost` | Un argomento di navigazione sbagliato è un errore di compilazione |
+| **Evento su `Channel`** | `ReportDetailViewModel.events` | Consegnato una volta sola, e non perso se nessuno sta ascoltando |
 
 ## SOLID, punto per punto
 
@@ -128,12 +218,12 @@ backend uso» ma «quale sorgente reale si mappa sul dominio senza fabbricare da
 inventati dentro un mapper sono un segnale peggiore di nessun dato.
 
 Le issue di un repository GitHub corrispondono quasi campo per campo: `title` al titolo,
-`state` allo stato, `user.login` al tecnico, `created_at` alla data, il nome del repository al
-cliente. L'API è pubblica, senza chiave, e il repository puntato è quello del progetto stesso
+`body` alla descrizione, `state` allo stato, `user.login` al tecnico, `created_at` alla data,
+il nome del repository al cliente. L'API è pubblica, senza chiave, e il repository puntato è quello del progetto stesso
 — quindi non dipende da un servizio di terzi che può sparire.
 
 Il valore vero sta però nelle **imperfezioni**, che sono la ragione per cui un'API reale
-insegna più di un file JSON con lo schema perfetto. `GitHubReportsApi` ne assorbe tre:
+insegna più di un file JSON con lo schema perfetto. `GitHubReportsApi` ne assorbe quattro:
 
 1. **L'endpoint restituisce anche le pull request**, che non sono rapporti e non hanno un
    campo che le dichiari: si riconoscono dalla presenza di un oggetto `pull_request` che sulle
@@ -143,6 +233,9 @@ insegna più di un file JSON con lo schema perfetto. `GitHubReportsApi` ne assor
    da come era etichettata mentre ci si lavorava. È una regola di dominio applicata a dati che
    non la conoscono: il lavoro tipico di un mapper.
 3. **Le date arrivano in ISO-8601** e il dominio le vuole in millisecondi.
+4. **Il corpo di una issue scritta dal sito arriva con gli a capo `\r\n`.** Sono di GitHub, e
+   si normalizzano nel mapper di GitHub: `ReportDto` non deve sapere da che sorgente viene il
+   testo.
 
 Il mapper si ferma a `ReportDto` invece di produrre direttamente un `Report`: così le difese
 già scritte e già testate in `ReportDto.toDomain()` — id vuoti, titoli mancanti, stati
@@ -264,6 +357,33 @@ continui a fallire, è ciò che la distingue da quel gesto.
   esportato in `app/schemas/` e versionato, perché il giorno in cui l'app permetterà di
   scrivere rapporti quella riga diventa un bug e la migrazione va scritta rispetto a
   qualcosa.
+  Con la colonna `description` lo schema è passato alla versione 2, ed è la prima volta che
+  la scelta si esercita davvero. Un test apre con il codice nuovo un file scritto con lo
+  schema 1 e verifica che si butti tutto, **data di sincronizzazione compresa**: una cache
+  vuota con una data fresca sarebbe creduta valida, e l'app mostrerebbe «Nessun rapporto»
+  fino alla scadenza invece di riscaricarli.
+- **Nessun form di modifica.** Il piano lo chiedeva insieme al dettaglio, ma l'app legge le
+  issue di GitHub senza autenticazione e non può scriverle. Le alternative erano due, e
+  nessuna valeva le ore: una modifica solo locale richiede una coda di scritture, che è il
+  tema di pos_sync e là è già dimostrato meglio; l'autenticazione apre la gestione dei
+  segreti, che questo progetto ha già dichiarato fuori portata.
+- **La descrizione è testo semplice.** Le issue sono scritte in Markdown, e nel dettaglio si
+  vedono asterischi e cancelletti. Mostrarlo formattato vuol dire una libreria o un parser,
+  per un campo che in un rapporto di intervento vero sarebbe testo semplice.
+- **L'avviso sulla rimozione non sopravvive a una rotazione.** Lo snackbar vive nella
+  composizione, e se si ruota mentre è visibile sparisce. L'evento non si ripete, che è il
+  punto; il messaggio perso è il prezzo, ed è piccolo, perché la lista mostra comunque che il
+  rapporto non c'è più.
+- **La navigazione nell'APK offuscato non è provata su un dispositivo.** La pipeline di
+  rilascio installa l'APK e controlla che l'app parta, ma non tocca una card. Le rotte
+  tipizzate si risolvono con serializzatori generati a compilazione e non per riflessione,
+  che è la ragione per cui R8 non dovrebbe toglierli; e l'output di R8 conferma che
+  `ReportDetailDestination` e il suo serializzatore restano nell'APK. È una verifica sul codice
+  prodotto, non sull'app che gira.
+- **Una data a zero significa "assente".** È il valore con cui `ReportDto.toDomain()`
+  rappresenta una data mancante o illeggibile, e il dettaglio lo mostra come «Data non
+  disponibile». Un `Long?` nel dominio sarebbe più onesto; cambiarlo ora toccherebbe
+  l'ordinamento della cache per un caso che la lista mostra già senza problemi.
 - **Nessuna sincronizzazione in background.** La cache si aggiorna all'apertura della
   schermata e sul gesto dell'utente. Un `WorkManager` che drena quando la rete torna è il
   passo successivo, ed è lo stesso problema già risolto in pos_sync.

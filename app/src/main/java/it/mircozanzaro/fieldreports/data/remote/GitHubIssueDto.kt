@@ -19,6 +19,7 @@ import kotlinx.serialization.Serializable
 data class GitHubIssueDto(
     val number: Int? = null,
     val title: String? = null,
+    val body: String? = null,
     val state: String? = null,
     @SerialName("created_at") val createdAt: String? = null,
     val user: GitHubUserDto? = null,

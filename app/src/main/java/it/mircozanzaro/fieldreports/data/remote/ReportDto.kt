@@ -17,6 +17,7 @@ data class ReportDto(
     val status: String?,
     val createdAt: Long?,
     val technician: String?,
+    val description: String? = null,
 )
 
 /**
@@ -36,5 +37,6 @@ fun ReportDto.toDomain(): Report? {
         status = ReportStatus.fromRaw(status),
         createdAtEpochMs = createdAt ?: 0L,
         technician = technician.orEmpty(),
+        description = description.orEmpty().trim(),
     )
 }

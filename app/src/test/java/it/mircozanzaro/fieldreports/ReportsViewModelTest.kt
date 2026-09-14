@@ -14,6 +14,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -67,6 +68,9 @@ class ReportsViewModelTest {
         val syncCount: Int get() = refreshCount + refreshIfStaleCount
 
         override fun observeReports(): Flow<List<Report>> = reports.asStateFlow()
+
+        override fun observeReport(id: String): Flow<Report?> =
+            reports.map { list -> list.firstOrNull { it.id == id } }
 
         override suspend fun refresh(): Outcome<Unit> {
             refreshCount++

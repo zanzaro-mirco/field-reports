@@ -23,6 +23,14 @@ interface ReportDao {
     @Query("SELECT * FROM reports ORDER BY created_at_epoch_ms DESC")
     fun observeAll(): Flow<List<ReportEntity>>
 
+    /**
+     * Un rapporto solo, osservato. `null` quando non c'è: è un risultato e non
+     * un errore, perché un rapporto può non esserci mai stato o sparire alla
+     * sincronizzazione successiva.
+     */
+    @Query("SELECT * FROM reports WHERE id = :id")
+    fun observeById(id: String): Flow<ReportEntity?>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(reports: List<ReportEntity>)
 

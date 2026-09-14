@@ -103,6 +103,21 @@ class GitHubReportsApiTest {
     }
 
     @Test
+    fun `il corpo della issue diventa la descrizione, con gli a capo normalizzati`() = runTest {
+        // Le issue scritte dal sito di GitHub arrivano con `\r\n`. Il corpo è
+        // anche facoltativo: la #1042 non ce l'ha, e non è un errore.
+        respondWithFixture()
+
+        val reports = api.fetchReports().map { it.toDomain()!! }
+
+        assertEquals(
+            "Il contatore segna consumi anche a impianto spento.\n\nSostituito e sigillato.",
+            reports.first { it.id == "#1041" }.description,
+        )
+        assertEquals("", reports.first { it.id == "#1042" }.description)
+    }
+
+    @Test
     fun `le pull request non sono rapporti e vengono scartate`() = runTest {
         // L'endpoint delle issue restituisce anche le PR: è la prima
         // imperfezione dell'API vera che il mapper deve assorbire.

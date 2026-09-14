@@ -26,6 +26,9 @@ class RoomReportsLocalStore(
     override fun observeReports(): Flow<List<Report>> =
         dao.observeAll().map { entities -> entities.map(ReportEntity::toDomain) }
 
+    override fun observeReport(id: String): Flow<Report?> =
+        dao.observeById(id).map { entity -> entity?.toDomain() }
+
     override suspend fun lastSyncEpochMs(): Long? =
         dao.lastSyncEpochMs(SyncStateEntity.SINGLE_ROW_ID)
 

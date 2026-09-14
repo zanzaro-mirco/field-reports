@@ -112,6 +112,10 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.activity.compose)
+    // La 2.8 è la prima con le rotte tipizzate: le destinazioni sono classi
+    // serializzabili invece di stringhe con i segnaposto, e un argomento
+    // sbagliato è un errore di compilazione invece che un crash al tocco.
+    implementation(libs.androidx.navigation.compose)
     implementation(libs.kotlinx.coroutines.core)
 
     coreLibraryDesugaring(libs.desugar.jdk.libs)

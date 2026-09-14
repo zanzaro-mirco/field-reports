@@ -38,6 +38,8 @@ class DefaultReportsRepository(
 
     override fun observeReports(): Flow<List<Report>> = local.observeReports()
 
+    override fun observeReport(id: String): Flow<Report?> = local.observeReport(id)
+
     override suspend fun refresh(): Outcome<Unit> =
         withContext(dispatchers.io) { fetchAndStore() }
 

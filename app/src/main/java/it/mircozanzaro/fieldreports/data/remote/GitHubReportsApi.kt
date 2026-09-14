@@ -16,12 +16,13 @@ import java.time.format.DateTimeParseException
  * dentro un mapper sarebbe stato peggio che non avere una sorgente vera: qui i
  * dati esistono davvero, e la corrispondenza è dichiarata invece che nascosta.
  *
- * Le tre imperfezioni che questa classe assorbe — e che sono il motivo per cui
- * un'API vera insegna più di un file JSON con lo schema perfetto:
+ * Le quattro imperfezioni che questa classe assorbe — e che sono il motivo per
+ * cui un'API vera insegna più di un file JSON con lo schema perfetto:
  *
  * 1. l'endpoint restituisce anche le pull request, che non sono rapporti;
  * 2. `IN_PROGRESS` non esiste su GitHub e va dedotto da un'etichetta;
- * 3. le date arrivano in ISO-8601, il dominio le vuole in millisecondi.
+ * 3. le date arrivano in ISO-8601, il dominio le vuole in millisecondi;
+ * 4. il corpo delle issue arriva con gli a capo `\r\n`.
  */
 class GitHubReportsApi(
     private val api: GitHubApi,
@@ -56,6 +57,10 @@ internal fun GitHubIssueDto.toReportDto(): ReportDto = ReportDto(
     status = resolveStatus(),
     createdAt = createdAt?.toEpochMillisOrNull(),
     technician = user?.login,
+    // Il corpo di una issue scritta dal sito arriva con gli a capo di Windows.
+    // È la quarta imperfezione, e il suo posto è qui con le altre: `ReportDto`
+    // non deve sapere da che sorgente viene il testo.
+    description = body?.replace("\r\n", "\n"),
 )
 
 /**

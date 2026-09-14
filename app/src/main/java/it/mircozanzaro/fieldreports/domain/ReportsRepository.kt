@@ -27,6 +27,12 @@ interface ReportsRepository {
      */
     fun observeReports(): Flow<List<Report>>
 
+    /**
+     * Un rapporto solo, dalla cache. Emette `null` quando non c'è — anche dopo
+     * esserci stato, se una sincronizzazione lo toglie.
+     */
+    fun observeReport(id: String): Flow<Report?>
+
     /** Sincronizza sempre. È il gesto esplicito dell'utente sul pulsante aggiorna. */
     suspend fun refresh(): Outcome<Unit>
 

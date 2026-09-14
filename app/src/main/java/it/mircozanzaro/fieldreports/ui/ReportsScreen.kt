@@ -20,6 +20,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -28,6 +30,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -47,6 +50,8 @@ import it.mircozanzaro.fieldreports.domain.ReportStatus
 @Composable
 fun ReportsRoute(
     viewModel: ReportsViewModel,
+    onReportClick: (reportId: String) -> Unit,
+    snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
     errorTextProvider: ErrorTextProvider = ItalianErrorTextProvider(),
 ) {
     LaunchedEffect(Unit) { viewModel.start() }
@@ -56,6 +61,8 @@ fun ReportsRoute(
         onRefresh = viewModel::refresh,
         onFilterChange = viewModel::setFilter,
         errorText = errorTextProvider::textFor,
+        onReportClick = onReportClick,
+        snackbarHostState = snackbarHostState,
     )
 }
 
@@ -67,9 +74,12 @@ fun ReportsScreen(
     onFilterChange: (ReportStatus?) -> Unit,
     errorText: (DomainError) -> String,
     modifier: Modifier = Modifier,
+    onReportClick: (reportId: String) -> Unit = {},
+    snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
 ) {
     Scaffold(
         modifier = modifier,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("Rapporti di intervento") },
@@ -111,7 +121,11 @@ fun ReportsScreen(
                         modifier = Modifier.testTag("report-list"),
                     ) {
                         items(state.visibleReports, key = Report::id) { report ->
-                            ReportCard(report)
+                            ReportCard(
+                                report = report,
+                                onClick = { onReportClick(report.id) },
+                                modifier = Modifier.testTag("report-${report.id}"),
+                            )
                         }
                     }
                 }
@@ -179,8 +193,12 @@ private fun StatusFilterRow(
  * un'immagine dell'intera schermata.
  */
 @Composable
-internal fun ReportCard(report: Report, modifier: Modifier = Modifier) {
-    Card(modifier.fillMaxWidth()) {
+internal fun ReportCard(
+    report: Report,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit = {},
+) {
+    Card(onClick = onClick, modifier = modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
             Text(report.title, style = MaterialTheme.typography.titleMedium)
             Text(report.customer, style = MaterialTheme.typography.bodyMedium)
@@ -208,14 +226,14 @@ private fun ReportStatus.filterLabel(): String = when (this) {
 }
 
 /**
- * L'etichetta su una singola card. Descrive un rapporto solo, quindi è al
- * singolare.
+ * L'etichetta di un rapporto solo, sulla card e nel dettaglio. Descrive un
+ * elemento, quindi è al singolare.
  *
  * Era la stessa funzione del filtro, e sulla card si leggeva "R-1041 · M. Rossi
  * · Chiusi". Due usi che sembrano lo stesso testo finché non si guarda cosa
  * stanno descrivendo: un insieme in un caso, un elemento nell'altro.
  */
-private fun ReportStatus.label(): String = when (this) {
+internal fun ReportStatus.label(): String = when (this) {
     ReportStatus.OPEN -> "Aperto"
     ReportStatus.IN_PROGRESS -> "In corso"
     ReportStatus.CLOSED -> "Chiuso"

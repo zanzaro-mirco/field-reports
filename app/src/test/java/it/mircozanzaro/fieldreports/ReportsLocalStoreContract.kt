@@ -84,10 +84,26 @@ abstract class ReportsLocalStoreContract {
             status = ReportStatus.IN_PROGRESS,
             createdAtEpochMs = 1_753_400_000_000,
             technician = "M. Rossi",
+            description = "La stampante perde la data a ogni riavvio.\nSostituita la batteria tampone.",
         )
         store.replaceAll(listOf(original), syncedAtEpochMs = 1)
 
         assertEquals(original, store.observeReports().first().single())
+    }
+
+    @Test
+    fun `un rapporto si osserva da solo, e torna null quando la cache lo toglie`() = runTest {
+        // È la lettura su cui si regge il dettaglio: null prima, il rapporto
+        // dopo la sincronizzazione, di nuovo null quando la successiva non lo
+        // porta più.
+        val store = createStore()
+        val observed = store.observeReport("R-2")
+
+        assertNull(observed.first())
+        store.replaceAll(listOf(report("R-1"), report("R-2")), syncedAtEpochMs = 1)
+        assertEquals("R-2", observed.first()?.id)
+        store.replaceAll(listOf(report("R-1")), syncedAtEpochMs = 2)
+        assertNull(observed.first())
     }
 
     @Test

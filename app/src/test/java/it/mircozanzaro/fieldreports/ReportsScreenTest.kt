@@ -186,6 +186,24 @@ class ReportsScreenTest {
     }
 
     @Test
+    fun `toccare una card risale l'id del rapporto`() {
+        var opened: String? = null
+        compose.setContent {
+            ReportsScreen(
+                state = ReportsUiState.Ready(listOf(report("R-1041"), report("R-1042"))),
+                onRefresh = {},
+                onFilterChange = {},
+                errorText = errorText,
+                onReportClick = { opened = it },
+            )
+        }
+
+        compose.onNodeWithTag("report-R-1042").performClick()
+
+        assertEquals("R-1042", opened)
+    }
+
+    @Test
     fun `toccare un chip risale lo stato scelto`() {
         var chosen: ReportStatus? = null
         compose.setContent {

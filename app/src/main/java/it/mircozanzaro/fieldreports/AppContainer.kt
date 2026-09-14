@@ -1,7 +1,6 @@
 package it.mircozanzaro.fieldreports
 
 import android.content.Context
-import androidx.room.Room
 import it.mircozanzaro.fieldreports.data.DefaultReportsRepository
 import it.mircozanzaro.fieldreports.data.StandardDispatcherProvider
 import it.mircozanzaro.fieldreports.data.local.FieldReportsDatabase
@@ -32,20 +31,8 @@ import java.util.concurrent.TimeUnit
  */
 class AppContainer(context: Context) {
 
-    private val database: FieldReportsDatabase = Room
-        .databaseBuilder(
-            context.applicationContext,
-            FieldReportsDatabase::class.java,
-            FieldReportsDatabase.NAME,
-        )
-        // Scelta consapevole, non pigrizia: questa è una cache, e tutto ciò che
-        // contiene è ricostruibile con una chiamata di rete. Finché non
-        // esisteranno dati creati sul dispositivo e non ancora sincronizzati,
-        // buttare il database a un cambio di schema costa un caricamento in
-        // più e risparmia una migrazione scritta per nulla. Il giorno in cui
-        // l'app permetterà di scrivere rapporti, questa riga diventa un bug.
-        .fallbackToDestructiveMigration()
-        .build()
+    // Cosa succede a un cambio di schema è scritto, e provato, in `open`.
+    private val database: FieldReportsDatabase = FieldReportsDatabase.open(context)
 
     /**
      * `ignoreUnknownKeys` non è pigrizia: la risposta di GitHub ha una
