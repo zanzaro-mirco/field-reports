@@ -35,6 +35,7 @@ ui/
   ReportDetailViewModel.kt     l'evento su Channel
   ReportDetailScreen.kt        il dettaglio, e la raccolta dell'evento legata al ciclo di vita
   ErrorTextProvider.kt         errore di dominio -> testo per l'utente
+  FieldReportsTheme.kt         il tema, e il bersaglio di tocco minimo per i guanti
 ```
 
 La regola: `domain` non importa nulla da `data` né da `ui`. Le frecce puntano
@@ -226,6 +227,82 @@ Il costo che non si misura in secondi sta nei test. Il grafo di navigazione ora 
 quattro test di navigazione su cinque. Il quinto, il doppio tocco su indietro, non guarda il
 contenuto del dettaglio. I test sul grafo provano quindi anche che l'argomento arriva davvero
 al ViewModel costruito da Hilt, e non solo che la navigazione avviene.
+
+## Accessibilità, misurata
+
+Un terminale da campo si usa all'aperto, in fretta, spesso con i guanti, e a volte da chi ha
+alzato la dimensione del testo per leggerlo. Il criterio era che la schermata resti usabile con
+il testo al 200% e che ogni elemento interattivo abbia una descrizione, **verificato in un test
+e non a occhio**. «Usabile», per un test, va definito: `AccessibilityTest` fa cinque controlli
+su ognuno degli otto stati delle due schermate.
+
+| Controllo | Come si misura |
+|---|---|
+| Ogni elemento che si tocca dice cos'è | testo o `contentDescription` non vuoti sul nodo semantico unito |
+| Bersagli di almeno 56 dp, non sovrapposti | l'area che Compose accetta come tocco, non la dimensione disegnata |
+| Nessun testo tagliato | righe oltre la larghezza, righe oltre l'altezza, puntini, parole spezzate a metà, testo nascosto da un contenitore che non scorre |
+| Contrasto WCAG AA, 4,5:1 | sui **pixel disegnati**: lo schermo va su una bitmap, e in ogni testo si confronta lo sfondo con il colore del testo |
+| Ogni indicatore di caricamento dice cosa aspetta | `contentDescription` sui nodi con `ProgressBarRangeInfo` |
+
+Lo schermo è 360×640 dp, quello di un palmare da 5 pollici, e la scala è **lineare**: il doppio
+di tutto. Android 14 ingrandisce meno i caratteri già grandi, ma i terminali da campo restano a
+lungo su versioni precedenti, dove questo aiuto non c'è. Si prova il caso peggiore.
+
+**Cosa ha trovato, sull'interfaccia di prima.** Il test è stato scritto prima delle correzioni,
+e falliva in tutti gli otto stati:
+
+- **Il titolo «Rapporti di intervento» non entrava nella barra.** Ora è «Rapporti»: il resto lo
+  dice il contenuto dello schermo, e una barra più alta avrebbe rubato spazio alla lista proprio
+  quando il testo grande ne lascia meno.
+- **«Chiusi» veniva spezzato a metà parola.** I tre chip stavano su una riga, e il terzo
+  riceveva lo spazio avanzato. Ora vanno a capo: una riga che scorre avrebbe tenuto il testo
+  intero ma nascosto un filtro fuori dallo schermo.
+- **Pulsanti e chip accettavano il tocco su 48 dp**, il minimo di sistema. Le card, grandi
+  di loro, erano già oltre.
+- **I tre indicatori di caricamento erano muti** per un lettore di schermo.
+
+Il contrasto passava già: i colori sono quelli di Material 3, e restano.
+
+**Cosa ha trovato, sul test.** Quattro volte il test ha detto una cosa falsa, e ogni volta lo
+ha scoperto una prova fatta apposta.
+
+1. **La prima versione dava per troncato ogni testo corto**, «Cliente» compreso. Usava
+   `hasVisualOverflow`, che confronta la larghezza del testo con quella del paragrafo; ma il
+   paragrafo viene impaginato su tutta la larghezza disponibile, quindi ogni testo più stretto
+   dello schermo risultava fuori. Ora si guarda dove finisce ogni riga.
+2. **La seconda non vedeva «Chiusi» spezzato.** Una parola divisa su due righe non esce da
+   nessun bordo. Il sospetto è nato da un'assenza: due chip su tre risultavano troppo piccoli,
+   il terzo no. Ora una riga che finisce fra due lettere è un testo troncato.
+3. **Il bersaglio da 56 dp nel tema non bastava.** `LocalMinimumInteractiveComponentSize`
+   riserva lo spazio nel layout, ma l'area che accetta il tocco la decide
+   `LocalViewConfiguration.minimumTouchTargetSize`, che restava a 48. Lo schermo *sembrava*
+   fatto per i guanti. Servono tutte e due, e un test a parte tocca davvero 26 dp sotto il
+   centro dell'icona di aggiorna: fuori dai 48 dp del sistema, dentro i 56 del tema.
+4. **Nei chip il contrasto misurava il bordo.** Con il testo grigio chiaro messo apposta, le
+   etichette dei chip risultavano a 4,33:1 invece di 2,06. A testo doppio l'etichetta è alta
+   quanto il chip, e il bordo del chip corre lungo i lati del suo rettangolo: era lui il colore
+   più lontano dallo sfondo. Ora il rettangolo si stringe di 2 dp prima di contare i colori, e
+   i chip grigi misurano 2,06.
+
+`captureToImage()`, il modo canonico di avere i pixel in un test Compose, sotto Robolectric
+aspetta un fotogramma che non arriva e va in timeout. Il test disegna la vista su una bitmap.
+
+**Falsificato.** Ogni correzione è stata tolta da sola:
+
+| Tolto | Cosa fallisce |
+|---|---|
+| `minimumTouchTargetSize` a 56 dp | tutti gli otto stati, con i bersagli a 48 dp, e il tocco sotto l'icona |
+| `LocalMinimumInteractiveComponentSize` a 56 dp | le tre liste: i chip su due righe si sovrappongono |
+| i chip che vanno a capo | le tre liste: «Chiusi» spezzato |
+| il titolo corto | i cinque stati della lista: titolo troncato |
+| la descrizione dell'indicatore del primo caricamento | `il primo caricamento resta usabile a testo doppio` |
+| la descrizione dell'icona di aggiorna | i cinque stati della lista |
+| il colore del testo, sostituito con un grigio chiaro | contrasti fra 1,67 e 2,06 in tutti gli stati |
+
+**Il limite che resta nel contrasto misurato.** Il colore del testo è, fra quelli abbastanza
+frequenti nel rettangolo del testo, il più lontano dallo sfondo. Stringere il rettangolo ha tolto
+i bordi che lo costeggiano, non un elemento scuro che lo attraversi nel mezzo: un testo pallido
+sopra un'icona scura passerebbe. Oggi nessun testo dell'app ha qualcosa sotto.
 
 ## MVVM, in concreto
 
@@ -449,6 +526,14 @@ continui a fallire, è ciò che la distingue da quel gesto.
   che è la ragione per cui R8 non dovrebbe toglierli; e l'output di R8 conferma che
   `ReportDetailDestination` e il suo serializzatore restano nell'APK. È una verifica sul codice
   prodotto, non sull'app che gira.
+- **L'accessibilità è provata con Robolectric, non con TalkBack su un telefono.** Il test
+  verifica che ogni elemento abbia qualcosa da far leggere, non come suona letto. La card, per
+  dire, si legge «R-1041 punto M. Rossi punto Aperto»: i separatori sono per l'occhio.
+- **Solo il tema chiaro.** Il contrasto è misurato su quello, e l'app non segue il tema scuro
+  del sistema: all'aperto, sotto il sole, è il chiaro che si legge.
+- **56 dp è una scelta, non una misura.** Nessuno ha provato con i guanti quale sia il bersaglio
+  giusto. Il valore sta in `MinTouchTarget`, e il test ne tiene uno suo: abbassarlo nel tema
+  senza toccare il test fa fallire la build.
 - **Una data a zero significa "assente".** È il valore con cui `ReportDto.toDomain()`
   rappresenta una data mancante o illeggibile, e il dettaglio lo mostra come «Data non
   disponibile». Un `Long?` nel dominio sarebbe più onesto; cambiarlo ora toccherebbe

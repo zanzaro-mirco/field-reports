@@ -87,6 +87,19 @@ non importano niente da Dagger. Il costo è misurato: mezzo secondo su una build
 e 10,7 KB sull'APK di rilascio. I numeri, e la prima misura che diceva il contrario, sono in
 [ARCHITECTURE.md](ARCHITECTURE.md).
 
+**L'accessibilità è un test, non un'occhiata.**
+Un terminale da campo si usa con i guanti, e a volte con il testo ingrandito. Con il testo al
+200% su uno schermo da palmare, `AccessibilityTest` controlla ogni stato di entrambe le
+schermate: ogni elemento che si tocca ha una descrizione, ogni bersaglio accetta il tocco su
+almeno 56 dp senza sovrapporsi agli altri, nessun testo è tagliato o spezzato, e il contrasto
+di ogni testo è misurato **sui pixel disegnati**. Scritto prima delle correzioni, falliva in
+tutti gli otto stati: un titolo tagliato, «Chiusi» spezzato a metà parola, bersagli a 48 dp,
+indicatori di caricamento muti. E ha trovato un errore meno ovvio: la dimensione minima dei
+componenti di Material riserva lo spazio, ma l'area che accetta il tocco resta a 48 dp finché
+non si cambia anche la configurazione della vista. Un test a parte tocca davvero lo schermo
+26 dp sotto il centro di un'icona. Anche il test ha sbagliato, quattro volte, e ogni volta lo
+ha scoperto una prova fatta apposta: il racconto è in [ARCHITECTURE.md](ARCHITECTURE.md).
+
 **Il ViewModel dipende da un'interfaccia, non da una classe.**
 `ReportsRepository` è definita nel dominio e implementata nel livello dati. Sembra un
 dettaglio, ma è ciò che permette al test di sostituire il repository invece di
@@ -146,6 +159,7 @@ app/src/main/java/it/mircozanzaro/fieldreports/
     ReportDetailViewModel.kt   l'evento su Channel
     ReportDetailScreen.kt      il dettaglio
     ErrorTextProvider.kt       errore di dominio -> testo per l'utente
+    FieldReportsTheme.kt       il tema, e il bersaglio di tocco per i guanti
 app/src/debug/                 HiltTestActivity: l'Activity su cui i test montano il grafo
 app/src/test/                  test del ViewModel e del livello dati, senza Android
 ```
@@ -207,6 +221,8 @@ fallirebbe mai — una rete di sicurezza finta è peggio di nessuna rete.
 | `un id che la cache non ha mai avuto e uno stato, non un evento` | Non c'è niente da cui tornare indietro: lo schermo resta e spiega |
 | `senza descrizione e senza data lo dice, invece di inventare` | Una data assente non diventa «1 gennaio 1970» |
 | `una cache della versione 1 si butta intera, data di sincronizzazione compresa` | Il primo cambio di schema: una cache vuota con una data fresca sarebbe creduta valida |
+| **`AccessibilityTest` (×8 stati)** | Con il testo al 200% su 360×640 dp: descrizioni, bersagli da 56 dp non sovrapposti, nessun testo tagliato, contrasto WCAG AA misurato sui pixel, indicatori che dicono cosa aspettano |
+| `un tocco appena fuori dall icona raggiunge ancora il pulsante` | Il bersaglio da 56 dp vale per il dito vero, non solo per l'area dichiarata |
 
 Gli stati si osservano con **Turbine**, che permette di asserire su un flusso di emissioni
 invece che su un singolo valore finale.
@@ -247,6 +263,7 @@ configurazione che avrebbe dovuto produrlo, e si ferma se trova `CN=Android Debu
 - [x] Compose UI test e screenshot test sulla schermata
 - [x] Release firmate e installabili, con la verifica che l'APK offuscato parta davvero
 - [x] Schermata di dettaglio con navigazione
+- [x] Accessibilità: testo al 200%, bersagli per i guanti, contrasto misurato
 - [ ] Prestazioni misurate: Macrobenchmark e Baseline Profiles
 
 Il form di modifica, che stava in questa lista insieme al dettaglio, non arriverà: l'app legge

@@ -24,6 +24,8 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -110,7 +112,11 @@ fun ReportDetailScreen(
                     .padding(padding),
                 contentAlignment = Alignment.Center,
             ) {
-                CircularProgressIndicator(Modifier.testTag("loading"))
+                CircularProgressIndicator(
+                    Modifier
+                        .semantics { contentDescription = "Caricamento del rapporto" }
+                        .testTag("loading"),
+                )
             }
 
             is ReportDetailUiState.NotFound -> Box(

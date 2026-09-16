@@ -1,6 +1,5 @@
 package it.mircozanzaro.fieldreports
 
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
@@ -20,6 +19,7 @@ import it.mircozanzaro.fieldreports.data.local.InMemoryReportsLocalStore
 import it.mircozanzaro.fieldreports.di.RepositoryModule
 import it.mircozanzaro.fieldreports.domain.ReportsRepository
 import it.mircozanzaro.fieldreports.ui.FieldReportsNavHost
+import it.mircozanzaro.fieldreports.ui.FieldReportsTheme
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
@@ -79,7 +79,7 @@ class NavigationTest {
 
     @Test
     fun `toccare un rapporto apre il suo dettaglio, e indietro torna alla lista`() {
-        compose.setContent { MaterialTheme { FieldReportsNavHost() } }
+        compose.setContent { FieldReportsTheme { FieldReportsNavHost() } }
 
         compose.onNodeWithTag("report-R-2").performClick()
         compose.onNodeWithTag("detail-title").assertTextEquals("Verifica lettore RFID")
@@ -94,7 +94,7 @@ class NavigationTest {
         // navigazione, sotto il dettaglio ce ne sarebbe un secondo, e un solo
         // "indietro" non basterebbe per tornare alla lista.
         val restoration = StateRestorationTester(compose)
-        restoration.setContent { MaterialTheme { FieldReportsNavHost() } }
+        restoration.setContent { FieldReportsTheme { FieldReportsNavHost() } }
 
         compose.onNodeWithTag("report-R-2").performClick()
         compose.onNodeWithTag("report-detail").assertIsDisplayed()
@@ -108,7 +108,7 @@ class NavigationTest {
 
     @Test
     fun `un doppio tocco sulla card apre un dettaglio solo`() {
-        compose.setContent { MaterialTheme { FieldReportsNavHost() } }
+        compose.setContent { FieldReportsTheme { FieldReportsNavHost() } }
 
         // La prima versione mandava due tocchi come sequenza di input, e non
         // provava niente: tolto il controllo sullo stato della lista, restava
@@ -134,7 +134,7 @@ class NavigationTest {
     fun `un doppio tocco su indietro non toglie anche la lista`() {
         // Il secondo "indietro" arriverebbe con la lista già in cima alla pila:
         // la toglierebbe, e lo schermo resterebbe vuoto.
-        compose.setContent { MaterialTheme { FieldReportsNavHost() } }
+        compose.setContent { FieldReportsTheme { FieldReportsNavHost() } }
         compose.onNodeWithTag("report-R-2").performClick()
 
         compose.onNodeWithTag("back").performTouchInput {
@@ -149,7 +149,7 @@ class NavigationTest {
     @Test
     fun `un rapporto rimosso riporta alla lista una volta sola, anche ruotando`() {
         val restoration = StateRestorationTester(compose)
-        restoration.setContent { MaterialTheme { FieldReportsNavHost() } }
+        restoration.setContent { FieldReportsTheme { FieldReportsNavHost() } }
         compose.onNodeWithTag("report-R-2").performClick()
         compose.onNodeWithTag("report-detail").assertIsDisplayed()
 

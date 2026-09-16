@@ -3,8 +3,9 @@ package it.mircozanzaro.fieldreports.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -34,6 +35,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import it.mircozanzaro.fieldreports.domain.DomainError
@@ -82,7 +85,11 @@ fun ReportsScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text("Rapporti di intervento") },
+                // Era «Rapporti di intervento»: con il testo al 200% su un palmare
+                // non entrava nella barra, e veniva tagliato. Il test di
+                // accessibilità lo ha trovato; «di intervento» lo dice già il
+                // contenuto dello schermo.
+                title = { Text("Rapporti") },
                 actions = {
                     IconButton(onClick = onRefresh, modifier = Modifier.testTag("refresh")) {
                         Icon(Icons.Default.Refresh, contentDescription = "Aggiorna")
@@ -93,7 +100,13 @@ fun ReportsScreen(
     ) { padding: PaddingValues ->
         when (state) {
             is ReportsUiState.Loading -> CenteredBox {
-                CircularProgressIndicator(Modifier.testTag("loading"))
+                // Un indicatore senza descrizione, per chi usa un lettore di
+                // schermo, è uno schermo vuoto.
+                CircularProgressIndicator(
+                    Modifier
+                        .semantics { contentDescription = "Caricamento dei rapporti" }
+                        .testTag("loading"),
+                )
             }
 
             is ReportsUiState.Error -> CenteredBox {
@@ -105,6 +118,7 @@ fun ReportsScreen(
                     LinearProgressIndicator(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .semantics { contentDescription = "Aggiornamento dei rapporti in corso" }
                             .testTag("refreshing"),
                     )
                 }
@@ -161,13 +175,22 @@ private fun StaleDataBanner(message: String) {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * I chip del filtro.
+ *
+ * Vanno a capo invece di stare su una riga sola. Su una riga, con il testo al
+ * 200% su un palmare, il terzo chip riceveva lo spazio avanzato dai primi due e
+ * «Chiusi» veniva spezzato a metà parola. Una riga che scorre in orizzontale
+ * avrebbe tenuto il testo intero, ma nascosto un filtro fuori dallo schermo: con
+ * tre scelte in tutto, andare a capo costa meno che doverle cercare.
+ */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun StatusFilterRow(
     selected: ReportStatus?,
     onSelect: (ReportStatus?) -> Unit,
 ) {
-    Row(
+    FlowRow(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp),

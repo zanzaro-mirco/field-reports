@@ -3,9 +3,9 @@ package it.mircozanzaro.fieldreports
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.material3.MaterialTheme
 import dagger.hilt.android.AndroidEntryPoint
 import it.mircozanzaro.fieldreports.ui.FieldReportsNavHost
+import it.mircozanzaro.fieldreports.ui.FieldReportsTheme
 
 /**
  * `@AndroidEntryPoint` non inietta niente qui dentro: serve perché i ViewModel
@@ -20,7 +20,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         setContent {
-            MaterialTheme {
+            FieldReportsTheme {
                 FieldReportsNavHost()
             }
         }
