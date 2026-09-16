@@ -8,6 +8,7 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.roborazzi)
     alias(libs.plugins.hilt)
+    alias(libs.plugins.baselineprofile)
 }
 
 // La chiave di firma non sta nel repository, e non ci sta nemmeno il suo
@@ -92,12 +93,35 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     testOptions {
         // Serve a Robolectric: i test del DAO girano sulla JVM ma hanno bisogno
         // delle risorse Android impacchettate.
         unitTests.isIncludeAndroidResources = true
+    }
+}
+
+// Le build su cui si misura leggono rapporti generati invece delle issue di
+// GitHub. Le issue del repository sono poche, e una lista che non scorre non si
+// misura; cambiano nel tempo, e un numero preso su dati che cambiano non si
+// riproduce; e senza token GitHub concede sessanta richieste all'ora, che un giro
+// di benchmark consuma. `benchmarkRelease` e `nonMinifiedRelease` le crea il
+// plugin dei Baseline Profile: sono release a tutti gli effetti, R8 compreso, e
+// solo loro hanno il valore a `true`. Nella release vera il ramo non esiste,
+// perché R8 toglie il codice dietro una costante falsa.
+androidComponents {
+    onVariants { variant ->
+        val measured = variant.buildType in setOf("benchmarkRelease", "nonMinifiedRelease")
+        variant.buildConfigFields.put(
+            "BENCHMARK_DATA",
+            com.android.build.api.variant.BuildConfigField(
+                "boolean",
+                measured.toString(),
+                "Rapporti generati al posto di GitHub, per misurare",
+            ),
+        )
     }
 }
 
@@ -124,6 +148,12 @@ dependencies {
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
     implementation(libs.androidx.hilt.navigation.compose)
+
+    // Installa il Baseline Profile anche fuori dal Play Store: chi scarica l'APK
+    // da una Release non riceve i profili dal cloud, e senza questa libreria il
+    // profilo nell'APK resterebbe inutilizzato.
+    implementation(libs.androidx.profileinstaller)
+    baselineProfile(project(":baselineprofile"))
 
     coreLibraryDesugaring(libs.desugar.jdk.libs)
 

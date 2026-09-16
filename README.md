@@ -100,6 +100,16 @@ non si cambia anche la configurazione della vista. Un test a parte tocca davvero
 26 dp sotto il centro di un'icona. Anche il test ha sbagliato, quattro volte, e ogni volta lo
 ha scoperto una prova fatta apposta: il racconto è in [ARCHITECTURE.md](ARCHITECTURE.md).
 
+**Le prestazioni sono misurate, e il risultato è nullo.**
+Un modulo Macrobenchmark guida l'APK di rilascio su un telefono vero, genera il Baseline
+Profile e misura avvio a freddo e scorrimento, senza e con il profilo. Su un Galaxy S20 la
+differenza non supera il rumore: fra due prove la stessa modalità si sposta di trenta
+millisecondi, più della distanza fra le due. Prima di crederci ho verificato nei log che le
+due modalità compilino davvero in modo diverso, e che il profilo nell'APK contenga 11.167
+metodi. Il numero da scrivere nel curriculum aspetta un telefono lento, dove i profili contano;
+i numeri, i comandi e i quattro errori trovati nei benchmark prima di misurare sono in
+[ARCHITECTURE.md](ARCHITECTURE.md).
+
 **Il ViewModel dipende da un'interfaccia, non da una classe.**
 `ReportsRepository` è definita nel dominio e implementata nel livello dati. Sembra un
 dettaglio, ma è ciò che permette al test di sostituire il repository invece di
@@ -160,6 +170,8 @@ app/src/main/java/it/mircozanzaro/fieldreports/
     ReportDetailScreen.kt      il dettaglio
     ErrorTextProvider.kt       errore di dominio -> testo per l'utente
     FieldReportsTheme.kt       il tema, e il bersaglio di tocco per i guanti
+baselineprofile/               Macrobenchmark e generatore del Baseline Profile
+app/src/release/generated/     i profili generati, versionati
 app/src/debug/                 HiltTestActivity: l'Activity su cui i test montano il grafo
 app/src/test/                  test del ViewModel e del livello dati, senza Android
 ```
@@ -227,6 +239,20 @@ fallirebbe mai — una rete di sicurezza finta è peggio di nessuna rete.
 Gli stati si osservano con **Turbine**, che permette di asserire su un flusso di emissioni
 invece che su un singolo valore finale.
 
+## Misurare le prestazioni
+
+Con un telefono collegato, sbloccato e con lo schermo sempre acceso:
+
+```bash
+./gradlew :app:generateBaselineProfile
+./gradlew :baselineprofile:connectedBenchmarkReleaseAndroidTest
+```
+
+Il primo rigenera i profili e richiede Android 13 o successivo; il secondo misura. I risultati
+finiscono in `baselineprofile/build/outputs/connected_android_test_additional_output/`. Le
+build di misura leggono cinquanta rapporti generati invece delle issue di GitHub, così i numeri
+si confrontano fra un giro e l'altro.
+
 ## Installarla senza compilarla
 
 Ogni tag `v*` produce una
@@ -264,7 +290,8 @@ configurazione che avrebbe dovuto produrlo, e si ferma se trova `CN=Android Debu
 - [x] Release firmate e installabili, con la verifica che l'APK offuscato parta davvero
 - [x] Schermata di dettaglio con navigazione
 - [x] Accessibilità: testo al 200%, bersagli per i guanti, contrasto misurato
-- [ ] Prestazioni misurate: Macrobenchmark e Baseline Profiles
+- [x] Macrobenchmark e Baseline Profile, misurati su un Galaxy S20: nessun guadagno oltre il rumore
+- [ ] La stessa misura su un telefono di fascia bassa
 
 Il form di modifica, che stava in questa lista insieme al dettaglio, non arriverà: l'app legge
 le issue di GitHub senza autenticazione e non può scriverle. Le ragioni sono in

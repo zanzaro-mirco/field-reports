@@ -36,6 +36,12 @@ ui/
   ReportDetailScreen.kt        il dettaglio, e la raccolta dell'evento legata al ciclo di vita
   ErrorTextProvider.kt         errore di dominio -> testo per l'utente
   FieldReportsTheme.kt         il tema, e il bersaglio di tocco minimo per i guanti
+
+baselineprofile/               modulo di test che guida l'APK di rilascio su un telefono vero
+  Journeys.kt                  i percorsi dell'utente, gli stessi per profilo e benchmark
+  BaselineProfileGenerator.kt  genera il Baseline Profile e il profilo di avvio
+  PerformanceBenchmarks.kt     avvio a freddo e scorrimento, senza e con il profilo
+app/src/release/generated/     i profili generati, versionati
 ```
 
 La regola: `domain` non importa nulla da `data` né da `ui`. Le frecce puntano
@@ -304,6 +310,93 @@ frequenti nel rettangolo del testo, il più lontano dallo sfondo. Stringere il r
 i bordi che lo costeggiano, non un elemento scuro che lo attraversi nel mezzo: un testo pallido
 sopra un'icona scura passerebbe. Oggi nessun testo dell'app ha qualcosa sotto.
 
+## Prestazioni: la misura, e un risultato nullo
+
+Il piano chiedeva due numeri, prima e dopo i Baseline Profile, riproducibili da chiunque cloni
+il repository. L'infrastruttura c'è e funziona. Il numero da mettere nel curriculum, su un
+telefono di fascia alta, **non è uscito**, e questa sezione dice perché, invece di tacerlo.
+
+**Come si misura.** Il modulo `:baselineprofile` guida l'APK di rilascio, R8 compreso, su un
+telefono collegato:
+
+```bash
+./gradlew :app:generateBaselineProfile
+./gradlew :baselineprofile:connectedBenchmarkReleaseAndroidTest
+```
+
+Il primo comando genera i profili in `app/src/release/generated/baselineProfiles/`: il
+Baseline Profile, 18.691 regole, dal percorso completo (avvio, scorrimento, un dettaglio
+aperto e chiuso); il profilo di avvio, 16.068 regole, dal solo avvio. Serve Android 13 o
+successivo, o un telefono con root. Il secondo misura avvio a freddo e scorrimento della
+lista, dieci giri ciascuno, in due modalità:
+
+- **senza compilazione** (`CompilationMode.None`). È l'app appena installata da un APK di una
+  Release, che non riceve i profili dal cloud come quelle del Play Store. Verificato nel log:
+  all'installazione `dex2oat` gira senza alcun profilo;
+- **con il Baseline Profile** (`Partial` con `Require`): il log mostra una seconda
+  compilazione con `--profile-file-fd`. `Require` fa fallire la misura se il profilo manca,
+  invece di dare in silenzio il numero di prima.
+
+**I dati sono generati.** Le build di misura leggono cinquanta rapporti fissi invece delle
+issue di GitHub, perché:
+
+- le issue del repository sono poche, e una lista che non scorre non si misura;
+- cambiano nel tempo, e un numero preso su dati che cambiano non si riproduce;
+- senza token GitHub concede sessanta richieste all'ora.
+
+Cinquanta è il massimo che l'app chiede a GitHub. La scelta sta in `BENCHMARK_DATA`, vero solo
+per le due build create dal plugin, e la release vera non ne porta traccia: `BenchmarkReportsApi`
+compare 14 volte nel mapping di R8 della build di misura e zero in quello della release.
+
+**I risultati.** Samsung Galaxy S20 (SM-G980F), Android 13, 16 settembre 2026; mediana di
+dieci giri.
+
+| | Senza compilazione | Con Baseline Profile |
+|---|---|---|
+| Primo fotogramma, prima prova | 314 ms | 312 ms |
+| Primo fotogramma, seconda prova | 307 ms | 304 ms |
+| Primo fotogramma, terza prova | 275 ms | 304 ms |
+| Rapporti visibili, terza prova | 380 ms | 431 ms |
+| Scorrimento, CPU per fotogramma, P50 / P90 / P99 | 7,8 / 12,2 / 22,8 ms | 8,0 / 12,3 / 24,1 ms |
+
+**Nessuna differenza oltre il rumore.** Fra una prova e l'altra la stessa modalità si sposta di
+trenta millisecondi, più di qualunque distanza fra le due colonne. Nella terza prova la
+versione senza profilo esce più veloce, cosa che un profilo non può causare: è rumore, ed è la
+ragione per cui un numero solo non si pubblica.
+
+**Prima di crederci, tre verifiche che non fosse un errore di misura.**
+
+1. Le due modalità compilano davvero in modo diverso, e lo dice il log di `dex2oat`, non la
+   configurazione del benchmark.
+2. Il profilo nell'APK è pieno: decodificato con `profgen dumpProfile`, contiene 11.167
+   metodi, 6.166 di Compose e 236 dell'app.
+3. Il primo fotogramma era soltanto l'indicatore di caricamento. Con `ReportDrawnWhen` il
+   benchmark misura anche quando compaiono i rapporti (`timeToFullDisplayMs`): anche lì,
+   nessun guadagno.
+
+**La spiegazione probabile, non dimostrata.** Un S20 compila al volo il poco codice che
+quest'app attraversa, abbastanza in fretta da non lasciare niente da guadagnare. I Baseline
+Profile valgono di più sui telefoni lenti, che sono anche i terminali da campo di questo
+dominio. La misura su un telefono di fascia bassa è il passo che manca, e il modulo è pronto:
+servono solo il telefono e i due comandi.
+
+**Quattro errori trovati nei benchmark, prima dei numeri.**
+
+- Il generatore apriva «il primo rapporto», che dopo lo scorrimento non era più a schermo.
+- Il profilo di avvio usciva identico al Baseline Profile, perché era generato dal percorso
+  completo. Ora ha un percorso suo.
+- Lo scorrimento con `startupMode = COLD` falliva: Macrobenchmark chiude il processo *dopo*
+  il blocco di preparazione e prima di quello misurato. Il processo ora si chiude a mano
+  all'inizio della preparazione.
+- La prima metrica si fermava all'indicatore di caricamento, come detto sopra.
+
+**Il costo.** L'APK di rilascio passa da 1.803.740 a 1.918.486 byte, 112 KB in più fra
+`profileinstaller` e i profili dentro. Su un S20 li paga senza un guadagno misurato; sui telefoni per
+cui esistono è da misurare. E secondo la documentazione di Android `profileinstaller` scrive il
+profilo al primo avvio, ma ART lo compila solo nell'ottimizzazione in background, a telefono
+inattivo e in carica: chi installa da una Release non ne beneficia al primo avvio. Qui non è
+verificato. Il benchmark forza quella compilazione, e misura quindi il caso migliore.
+
 ## MVVM, in concreto
 
 - La View osserva `StateFlow`, non chiama il ViewModel per leggere.
@@ -526,6 +619,11 @@ continui a fallire, è ciò che la distingue da quel gesto.
   che è la ragione per cui R8 non dovrebbe toglierli; e l'output di R8 conferma che
   `ReportDetailDestination` e il suo serializzatore restano nell'APK. È una verifica sul codice
   prodotto, non sull'app che gira.
+- **Le build di misura non leggono GitHub.** Cinquanta rapporti generati, per le ragioni scritte
+  nella sezione sulle prestazioni. Si misura l'app, non la rete: il tempo di una chiamata vera
+  non entra nei numeri.
+- **Le prestazioni sono misurate su un telefono solo, e di fascia alta.** Il risultato vale
+  per quel telefono.
 - **L'accessibilità è provata con Robolectric, non con TalkBack su un telefono.** Il test
   verifica che ogni elemento abbia qualcosa da far leggere, non come suona letto. La card, per
   dire, si legge «R-1041 punto M. Rossi punto Aperto»: i separatori sono per l'occhio.

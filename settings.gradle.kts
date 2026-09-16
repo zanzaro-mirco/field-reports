@@ -16,3 +16,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "field-reports"
 include(":app")
+include(":baselineprofile")

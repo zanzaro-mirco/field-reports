@@ -6,12 +6,14 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import it.mircozanzaro.fieldreports.BuildConfig
 import it.mircozanzaro.fieldreports.data.DefaultReportsRepository
 import it.mircozanzaro.fieldreports.data.DispatcherProvider
 import it.mircozanzaro.fieldreports.data.StandardDispatcherProvider
 import it.mircozanzaro.fieldreports.data.local.FieldReportsDatabase
 import it.mircozanzaro.fieldreports.data.local.ReportsLocalStore
 import it.mircozanzaro.fieldreports.data.local.RoomReportsLocalStore
+import it.mircozanzaro.fieldreports.data.remote.BenchmarkReportsApi
 import it.mircozanzaro.fieldreports.data.remote.GitHubApi
 import it.mircozanzaro.fieldreports.data.remote.GitHubReportsApi
 import it.mircozanzaro.fieldreports.data.remote.ReportsApi
@@ -22,6 +24,7 @@ import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import java.util.concurrent.TimeUnit
+import javax.inject.Provider
 import javax.inject.Singleton
 
 /*
@@ -94,13 +97,23 @@ object NetworkModule {
      *
      * Il repository puntato è quello del progetto stesso: esiste per
      * definizione e non dipende da un servizio di terzi che può sparire.
+     *
+     * L'unica eccezione sono le build su cui si misurano le prestazioni, e la
+     * ragione è scritta dove `BENCHMARK_DATA` viene definito, in
+     * `app/build.gradle.kts`. Il `Provider` e non il `GitHubApi` diretto: così
+     * quelle build non costruiscono nemmeno il client HTTP.
      */
     @Provides
-    fun reportsApi(api: GitHubApi): ReportsApi = GitHubReportsApi(
-        api = api,
-        owner = "zanzaro-mirco",
-        repo = "field-reports",
-    )
+    fun reportsApi(api: Provider<GitHubApi>): ReportsApi =
+        if (BuildConfig.BENCHMARK_DATA) {
+            BenchmarkReportsApi()
+        } else {
+            GitHubReportsApi(
+                api = api.get(),
+                owner = "zanzaro-mirco",
+                repo = "field-reports",
+            )
+        }
 }
 
 @Module

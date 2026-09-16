@@ -1,5 +1,6 @@
 package it.mircozanzaro.fieldreports.ui
 
+import androidx.activity.compose.ReportDrawnWhen
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -59,6 +60,11 @@ fun ReportsRoute(
 ) {
     LaunchedEffect(Unit) { viewModel.start() }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    // L'avvio finisce quando l'utente vede i rapporti, non quando compare il
+    // primo fotogramma: quello è l'indicatore di caricamento. Il sistema lo
+    // registra come `reportFullyDrawn`, e i benchmark lo leggono come
+    // `timeToFullDisplayMs`.
+    ReportDrawnWhen { state !is ReportsUiState.Loading }
     ReportsScreen(
         state = state,
         onRefresh = viewModel::refresh,
