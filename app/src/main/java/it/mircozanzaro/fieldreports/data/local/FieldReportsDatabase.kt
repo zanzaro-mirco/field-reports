@@ -31,8 +31,8 @@ abstract class FieldReportsDatabase : RoomDatabase() {
          * Il database su file, come lo apre l'app.
          *
          * Sta qui e non nella composition root perché il suo comportamento a un
-         * cambio di schema va provato, e un test non può costruire
-         * `AppContainer` senza portarsi dietro la rete.
+         * cambio di schema va provato, e un test deve poter aprire il database
+         * senza montare il grafo delle dipendenze e portarsi dietro la rete.
          *
          * `fallbackToDestructiveMigration()` è una scelta consapevole, non
          * pigrizia: questa è una cache, e tutto ciò che contiene è ricostruibile

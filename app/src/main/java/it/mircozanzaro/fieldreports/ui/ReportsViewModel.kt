@@ -2,6 +2,7 @@ package it.mircozanzaro.fieldreports.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import dagger.hilt.android.lifecycle.HiltViewModel
 import it.mircozanzaro.fieldreports.domain.DomainError
 import it.mircozanzaro.fieldreports.domain.Outcome
 import it.mircozanzaro.fieldreports.domain.Report
@@ -13,6 +14,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 /**
  * ViewModel della schermata rapporti.
@@ -31,7 +33,8 @@ import kotlinx.coroutines.launch
  * sincronizzazione in corso. Il [combine] le tiene allineate; nessuna delle tre
  * sa delle altre.
  */
-class ReportsViewModel(
+@HiltViewModel
+class ReportsViewModel @Inject constructor(
     private val repository: ReportsRepository,
 ) : ViewModel() {
 

@@ -1,7 +1,10 @@
 package it.mircozanzaro.fieldreports.ui
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.navigation.toRoute
+import dagger.hilt.android.lifecycle.HiltViewModel
 import it.mircozanzaro.fieldreports.domain.Report
 import it.mircozanzaro.fieldreports.domain.ReportsRepository
 import kotlinx.coroutines.channels.Channel
@@ -12,6 +15,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 /**
  * ViewModel del dettaglio di un rapporto.
@@ -26,10 +30,27 @@ import kotlinx.coroutines.launch
  * posto in più in cui un evento può duplicarsi. Qui invece la decisione è sua —
  * il rapporto aperto è sparito, e lo sa solo chi osserva la cache.
  */
+@HiltViewModel
 class ReportDetailViewModel(
     private val repository: ReportsRepository,
     private val reportId: String,
 ) : ViewModel() {
+
+    /**
+     * Il costruttore che usa Hilt. L'id arriva dalla rotta tipizzata, che la
+     * navigazione copia nel `SavedStateHandle` di questa destinazione: si legge
+     * con lo stesso tipo con cui è stato scritto, senza nomi di chiave a mano.
+     *
+     * Il costruttore primario resta con l'id esplicito, ed è quello dei test del
+     * ViewModel: provano l'evento, e un `SavedStateHandle` costruito a mano
+     * sarebbe solo un modo più lungo di scrivere `"R-1"`. Che l'id arrivi
+     * davvero dalla navigazione lo prova il test sul grafo vero.
+     */
+    @Inject
+    constructor(repository: ReportsRepository, savedStateHandle: SavedStateHandle) : this(
+        repository = repository,
+        reportId = savedStateHandle.toRoute<ReportDetailDestination>().reportId,
+    )
 
     private val _uiState = MutableStateFlow<ReportDetailUiState>(ReportDetailUiState.Loading)
 

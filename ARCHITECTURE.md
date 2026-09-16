@@ -3,8 +3,9 @@
 ## Struttura
 
 ```
-AppContainer.kt                composition root: l'unico punto che conosce le classi concrete
-FieldReportsApplication.kt     tiene in vita il grafo quanto il processo
+FieldReportsApplication.kt     @HiltAndroidApp: il grafo vive quanto il processo
+di/
+  AppModules.kt                composition root: l'unico file che conosce le classi concrete
 domain/                        nessuna dipendenza, nemmeno da Android
   Report.kt                    modello puro
   ReportsRepository.kt         contratto definito qui, implementato altrove
@@ -163,6 +164,69 @@ doppione del test sul grafo, sono gli unici che se ne accorgono.
 tenuta come stato nel ViewModel della lista falliscono anche i test senza rotazione: basta
 tornare alla lista, e lo stato ancora valorizzato rimanda al dettaglio.
 
+## Hilt, e perché è arrivato adesso
+
+Per le prime versioni il grafo delle dipendenze era una classe scritta a mano, `AppContainer`, e
+la documentazione diceva che Hilt si giustifica quando la costruzione a mano diventa il
+problema. La soglia era giusta; il conteggio che la accompagnava no. «Un grafo di quattro
+oggetti» era vero con la sorgente finta, e con Retrofit e Room gli oggetti sono diventati otto
+senza che la frase cambiasse. Il container non era comunque il problema: otto righe che si
+leggono dall'alto in basso non chiedono un framework.
+
+**Il problema è arrivato con la navigazione, e non stava nel container.** Ogni destinazione ha
+il suo ViewModel, che vive quanto la sua voce nella pila e quindi si può costruire solo dentro
+il grafo di navigazione. Il risultato era una factory scritta a mano per destinazione dentro
+`FieldReportsNavHost`, e il repository passato come parametro dall'Activity al grafo solo per
+arrivare a quelle factory. Quella del dettaglio doveva mettere insieme una dipendenza e un
+argomento di navigazione. Il costo di scrivere il grafo a mano non si vedeva nel posto in cui
+lo si scriveva, ma nella UI.
+
+Con Hilt il grafo di navigazione non riceve niente: `hiltViewModel()` costruisce il ViewModel
+e lo lega comunque alla voce della pila, e il dettaglio legge l'id dal `SavedStateHandle` con
+la stessa rotta tipizzata con cui la navigazione lo ha scritto.
+
+**Tre scelte, ciascuna con il suo perché.**
+
+- **`@Provides` e non costruttori `@Inject`.** `data/` e `domain/` non importano niente da
+  Dagger. Nel `git diff` del commit che introduce Hilt, sotto quelle due cartelle cambia una
+  sola cosa: un commento che nominava `AppContainer`. Il prezzo sono le righe di un
+  `@Provides` al posto di un `@Binds`.
+- **I moduli in un file solo.** Il pregio di `AppContainer` era che il grafo si leggeva in un
+  posto solo. Hilt permette di spargerlo, non lo chiede.
+- **`@Singleton` su tre oggetti su otto.** Il database, perché riaperto a ogni rotazione
+  butterebbe connessione e cache delle query; il client HTTP, perché tiene il pool delle
+  connessioni; il servizio Retrofit, perché ricorda per istanza le annotazioni già lette. Il
+  repository, il mapper della sorgente e lo store non hanno stato proprio, e uno scope su di
+  loro dichiarerebbe una cosa falsa.
+
+**Cosa costa, misurato.** Su questo computer, build completa di debug con
+`./gradlew :app:assembleDebug --rerun-tasks --no-build-cache --profile`, tre prove per versione
+alternate fra loro. I tempi dei singoli task vengono dall'ultima prova di ciascuna versione, e
+le dimensioni dell'APK da due compilazioni di rilascio fatte lo stesso giorno:
+
+| | Prima | Con Hilt |
+|---|---|---|
+| Tempo totale | 23,3 – 23,7 s | 23,7 – 24,2 s |
+| `kspDebugKotlin` | 1,6 s | 2,6 s |
+| `hiltJavaCompileDebug` | — | 1,6 s |
+| APK di rilascio, dopo R8 | 1.792.983 byte | 1.803.740 byte (+10,7 KB) |
+
+Hilt aggiunge circa tre secondi di lavoro, ma il tempo totale cresce di mezzo secondo:
+i suoi task girano in parallelo con il desugaring di `java.time`, che da solo ne prende
+diciannove. La prima misura, fatta a tempo di orologio e senza alternare, diceva che con Hilt
+la build era più **veloce** — era il daemon che si scaldava, e il motivo per cui la tabella
+viene da `--profile`.
+
+Il costo che non si misura in secondi sta nei test. Il grafo di navigazione ora si prova con
+`@HiltAndroidTest`: si toglie `RepositoryModule` e si inietta la cache in memoria con
+`@BindValue`. Serve un'Activity annotata, `HiltTestActivity`, nel sorgente `debug` e non in
+`test` — verificato spostandola: Robolectric non avvia un'Activity che il manifest non dichiara.
+
+**Falsificato.** Con l'id letto dal `SavedStateHandle` alterato di un carattere falliscono
+quattro test di navigazione su cinque. Il quinto, il doppio tocco su indietro, non guarda il
+contenuto del dettaglio. I test sul grafo provano quindi anche che l'argomento arriva davvero
+al ViewModel costruito da Hilt, e non solo che la navigazione avviene.
+
 ## MVVM, in concreto
 
 - La View osserva `StateFlow`, non chiama il ViewModel per leggere.
@@ -188,6 +252,7 @@ tornare alla lista, e lo stato ancora valorizzato rimanda al dettaglio.
 | **State hoisting verificato** | `ReportsScreenTest` | La schermata si monta su uno stato costruito a mano, senza ViewModel: è la prova che la separazione regge |
 | **Rotte tipizzate** | `FieldReportsNavHost` | Un argomento di navigazione sbagliato è un errore di compilazione |
 | **Evento su `Channel`** | `ReportDetailViewModel.events` | Consegnato una volta sola, e non perso se nessuno sta ascoltando |
+| **Dependency Injection** | `di/AppModules.kt`, Hilt | I ViewModel delle destinazioni senza factory scritte a mano, e il grafo di test uguale a quello vero meno un modulo |
 
 ## SOLID, punto per punto
 
@@ -246,7 +311,7 @@ significato una seconda copia di quelle difese, cioè due copie che prima o poi 
 ha toccato una riga sotto `domain/` né sotto `ui/`, e `ReportsViewModelTest` è uscito dal
 commit senza modifiche. Le uniche due classi già esistenti coinvolte sono `ErrorMapper`, che
 ha guadagnato due rami, e `AppContainer`, dove si sceglie l'implementazione concreta — che è
-letteralmente il suo mestiere.
+letteralmente il suo mestiere. Oggi quel posto è `di/AppModules.kt`.
 
 **Core library desugaring.** `Instant.parse` richiede la API 26 e il `minSdk` è 24.
 L'alternativa era un parser ISO-8601 scritto a mano: codice fragile, da testare, per risolvere
@@ -329,6 +394,7 @@ continui a fallire, è ciò che la distingue da quel gesto.
 | `init { refresh() }`: il caricamento partiva dal costruttore | `start()` esplicito e idempotente: si può asserire sullo stato iniziale |
 | Il tempo si leggeva dove serviva | `Clock` iniettato: la scadenza della cache si verifica senza aspettare |
 | Il livello di persistenza non esisteva | Un contratto solo, due implementazioni, la stessa suite su entrambe |
+| Il grafo di navigazione si provava passandogli il repository come parametro | Si toglie un modulo Hilt e si inietta la cache in memoria: il grafo provato è quello dell'app |
 
 ## Dove ho consapevolmente semplificato
 
@@ -342,8 +408,11 @@ continui a fallire, è ciò che la distingue da quel gesto.
   identità verificata da nessuno: dice solo che due APK con lo stesso nome di pacchetto
   vengono dalla stessa mano. Per il Play Store servirebbe altro, e non è dove questi
   progetti vanno.
-- **Niente Hilt.** `AppContainer` scritto a mano è sufficiente per un grafo di quattro
-  oggetti. Hilt si giustifica quando la costruzione a mano diventa il problema, non prima.
+- **Il ViewModel del dettaglio ha due costruttori.** Hilt usa quello con il
+  `SavedStateHandle`; i test del ViewModel usano quello con l'id esplicito, perché provano
+  l'evento, e un `SavedStateHandle` costruito a mano sarebbe solo un modo più lungo di scrivere
+  `"R-1"`. Il costruttore di Hilt non ha un test suo: lo provano i test sul grafo vero, che
+  falliscono se l'id non arriva.
 - **Nessun use case fra ViewModel e repository.** Con un'unica operazione di lettura
   sarebbe cerimonia. Diventerebbe utile con logica composta fra più sorgenti.
 - **`replaceAll` sostituisce tutto invece di confrontare riga per riga.** È la scelta

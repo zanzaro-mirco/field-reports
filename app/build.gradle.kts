@@ -7,6 +7,7 @@ plugins {
     alias(libs.plugins.ksp)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.roborazzi)
+    alias(libs.plugins.hilt)
 }
 
 // La chiave di firma non sta nel repository, e non ci sta nemmeno il suo
@@ -118,6 +119,12 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
     implementation(libs.kotlinx.coroutines.core)
 
+    // Con KSP e non con kapt, come Room: kapt genera prima gli stub Java di
+    // tutto il modulo, ed è la parte lenta della compilazione.
+    implementation(libs.hilt.android)
+    ksp(libs.hilt.compiler)
+    implementation(libs.androidx.hilt.navigation.compose)
+
     coreLibraryDesugaring(libs.desugar.jdk.libs)
 
     implementation(libs.kotlinx.serialization.json)
@@ -153,4 +160,6 @@ dependencies {
     testImplementation(libs.roborazzi)
     testImplementation(libs.roborazzi.compose)
     testImplementation(libs.roborazzi.junit.rule)
+    testImplementation(libs.hilt.android.testing)
+    kspTest(libs.hilt.compiler)
 }

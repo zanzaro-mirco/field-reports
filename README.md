@@ -76,6 +76,17 @@ e non dipende dalla velocità della macchina di CI.
 eventi. Sono quindi visualizzabili in anteprima e testabili senza dipendenze — è lo state
 hoisting applicato sul serio, non solo citato.
 
+**Hilt è arrivato tardi, e di proposito.**
+Per le prime versioni il grafo era una classe scritta a mano, perché un framework si
+giustifica quando la costruzione a mano diventa il problema. Il problema non è comparso dove
+lo si aspettava, cioè nella classe che costruiva gli oggetti: è comparso con la navigazione,
+sotto forma di una factory scritta a mano per ogni ViewModel dentro il grafo di navigazione, e
+del repository passato come parametro dall'Activity fino a lì. Con Hilt il grafo di
+navigazione non riceve niente. I collegamenti sono tutti `@Provides`, così `data/` e `domain/`
+non importano niente da Dagger. Il costo è misurato: mezzo secondo su una build completa di 24,
+e 10,7 KB sull'APK di rilascio. I numeri, e la prima misura che diceva il contrario, sono in
+[ARCHITECTURE.md](ARCHITECTURE.md).
+
 **Il ViewModel dipende da un'interfaccia, non da una classe.**
 `ReportsRepository` è definita nel dominio e implementata nel livello dati. Sembra un
 dettaglio, ma è ciò che permette al test di sostituire il repository invece di
@@ -113,8 +124,8 @@ Robolectric su SQLite in memoria: dentro `./gradlew test`, quindi in CI, senza e
 ```
 app/src/main/java/it/mircozanzaro/fieldreports/
   MainActivity.kt              la schermata
-  AppContainer.kt              composition root
-  FieldReportsApplication.kt   tiene in vita il grafo quanto il processo
+  FieldReportsApplication.kt   @HiltAndroidApp: il grafo vive quanto il processo
+  di/AppModules.kt             composition root: i moduli Hilt
   domain/                      nessuna dipendenza, nemmeno da Android
     Report.kt  ReportsRepository.kt  Outcome.kt
   data/
@@ -135,6 +146,7 @@ app/src/main/java/it/mircozanzaro/fieldreports/
     ReportDetailViewModel.kt   l'evento su Channel
     ReportDetailScreen.kt      il dettaglio
     ErrorTextProvider.kt       errore di dominio -> testo per l'utente
+app/src/debug/                 HiltTestActivity: l'Activity su cui i test montano il grafo
 app/src/test/                  test del ViewModel e del livello dati, senza Android
 ```
 
@@ -231,7 +243,7 @@ configurazione che avrebbe dovuto produrlo, e si ferma se trova `CN=Android Debu
 - [x] Cache locale con Room, per la consultazione offline
 - [x] Client HTTP reale (Retrofit + kotlinx-serialization) al posto di `FakeReportsApi`
 - [ ] Sincronizzazione in background quando la rete torna
-- [ ] Hilt al posto della factory scritta a mano, quando i grafi cresceranno
+- [x] Hilt al posto delle factory scritte a mano, quando il grafo di navigazione lo ha chiesto
 - [x] Compose UI test e screenshot test sulla schermata
 - [x] Release firmate e installabili, con la verifica che l'APK offuscato parta davvero
 - [x] Schermata di dettaglio con navigazione

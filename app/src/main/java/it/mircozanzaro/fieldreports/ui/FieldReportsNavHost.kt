@@ -5,17 +5,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.dropUnlessResumed
-import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import androidx.navigation.toRoute
-import it.mircozanzaro.fieldreports.domain.ReportsRepository
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 
@@ -37,14 +33,16 @@ data class ReportDetailDestination(val reportId: String)
 /**
  * Il grafo di navigazione dell'app.
  *
- * Riceve il repository e costruisce i ViewModel. È la metà della composition
- * root che deve per forza stare dentro Compose: il ViewModel di una
- * destinazione vive quanto la sua voce nella pila di navigazione, non quanto
- * l'Activity, e solo qui quella voce esiste.
+ * Non riceve più il repository, e non costruisce più i ViewModel. Prima di Hilt
+ * questa era la metà della composition root che doveva per forza stare dentro
+ * Compose: ogni destinazione con la sua factory scritta a mano, e il repository
+ * passato come parametro dall'Activity fino a qui solo per arrivare a quelle
+ * factory. `hiltViewModel()` lega comunque il ViewModel alla voce della pila di
+ * navigazione, non all'Activity — che era la ragione per cui la costruzione
+ * stava qui.
  */
 @Composable
 fun FieldReportsNavHost(
-    repository: ReportsRepository,
     modifier: Modifier = Modifier,
     navController: NavHostController = rememberNavController(),
 ) {
@@ -61,9 +59,7 @@ fun FieldReportsNavHost(
     ) {
         composable<ReportListDestination> { entry ->
             ReportsRoute(
-                viewModel = viewModel(
-                    factory = viewModelFactory { initializer { ReportsViewModel(repository) } },
-                ),
+                viewModel = hiltViewModel(),
                 onReportClick = { reportId ->
                     // Il secondo tocco di un doppio tocco arriva quando la lista
                     // sta già uscendo e non è più in primo piano: senza questo
@@ -79,14 +75,11 @@ fun FieldReportsNavHost(
             )
         }
 
-        composable<ReportDetailDestination> { entry ->
-            val destination: ReportDetailDestination = entry.toRoute()
+        composable<ReportDetailDestination> {
             ReportDetailRoute(
-                viewModel = viewModel(
-                    factory = viewModelFactory {
-                        initializer { ReportDetailViewModel(repository, destination.reportId) }
-                    },
-                ),
+                // L'id del rapporto non passa più da qui: il ViewModel lo legge
+                // dal proprio `SavedStateHandle`, dove la navigazione lo mette.
+                viewModel = hiltViewModel(),
                 // Stessa ragione del tocco sulla card: due tocchi su "indietro"
                 // toglierebbero anche la lista, e lascerebbero lo schermo vuoto.
                 onBack = dropUnlessResumed { navController.popBackStack() },
