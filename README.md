@@ -6,6 +6,8 @@ gestione esplicita degli stati di caricamento ed errore.
 
 [![CI](https://github.com/zanzaro-mirco/field-reports/actions/workflows/ci.yml/badge.svg)](https://github.com/zanzaro-mirco/field-reports/actions/workflows/ci.yml)
 
+È uno dei quattro progetti del mio portfolio: la scheda, insieme agli altri tre, è su [zanzaro-mirco.github.io](https://zanzaro-mirco.github.io/progetti/field-reports/).
+
 ## Perché questo progetto
 
 È un'app volutamente piccola, costruita per mostrare **come** si scrive Android oggi:
