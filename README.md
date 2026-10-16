@@ -6,7 +6,7 @@ gestione esplicita degli stati di caricamento ed errore.
 
 [![CI](https://github.com/zanzaro-mirco/field-reports/actions/workflows/ci.yml/badge.svg)](https://github.com/zanzaro-mirco/field-reports/actions/workflows/ci.yml)
 
-È uno dei quattro progetti del mio portfolio: la scheda, insieme agli altri tre, è su [zanzaro-mirco.github.io](https://zanzaro-mirco.github.io/progetti/field-reports/).
+È uno dei cinque progetti del mio portfolio: la scheda, insieme agli altri quattro, è su [zanzaro-mirco.github.io](https://zanzaro-mirco.github.io/progetti/field-reports/).
 
 ## Perché questo progetto
 
@@ -279,8 +279,8 @@ configurazione che avrebbe dovuto produrlo, e si ferma se trova `CN=Android Debu
 - Android Studio recente (o solo Gradle da riga di comando)
 - `minSdk` 24, `compileSdk` 34
 
-> Le versioni delle dipendenze stanno in `gradle/libs.versions.toml`. Prima di pubblicare
-> il repository conviene allinearle agli aggiornamenti correnti.
+> Le versioni delle dipendenze sono fissate in `gradle/libs.versions.toml`. Non sono le più
+> recenti: allinearle, a partire da `compileSdk` e `targetSdk`, è fra i prossimi passi.
 
 ## Stato e prossimi passi
 
@@ -294,6 +294,7 @@ configurazione che avrebbe dovuto produrlo, e si ferma se trova `CN=Android Debu
 - [x] Accessibilità: testo al 200%, bersagli per i guanti, contrasto misurato
 - [x] Macrobenchmark e Baseline Profile, misurati su un Galaxy S20: nessun guadagno oltre il rumore
 - [ ] La stessa misura su un telefono di fascia bassa
+- [ ] SDK e dipendenze allineati alle versioni correnti, a partire da `targetSdk`
 
 Il form di modifica, che stava in questa lista insieme al dettaglio, non arriverà: l'app legge
 le issue di GitHub senza autenticazione e non può scriverle. Le ragioni sono in

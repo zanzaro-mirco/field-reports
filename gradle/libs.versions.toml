@@ -1,6 +1,6 @@
 # Version catalog: le versioni stanno in un posto solo.
-# Prima di pubblicare il repository conviene allinearle con `gradle versions`
-# o con gli aggiornamenti proposti da Android Studio.
+# Non sono le più recenti: si allineano con `gradle versions` o con gli
+# aggiornamenti proposti da Android Studio.
 [versions]
 agp = "8.5.2"
 kotlin = "2.0.20"
