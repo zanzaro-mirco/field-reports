@@ -1,8 +1,8 @@
 import java.util.Properties
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     alias(libs.plugins.kotlin.serialization)
@@ -34,11 +34,16 @@ val appVersionCode: Int = providers.gradleProperty("appVersionCode").getOrElse("
 
 android {
     namespace = "it.mircozanzaro.fieldreports"
-    compileSdk = 34
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "it.mircozanzaro.fieldreports"
         minSdk = 24
+        // Resta alla 34 mentre `compileSdk` è già alla 37. Dalla 35 in poi il
+        // sistema non riserva più lo spazio delle barre: l'app disegna sotto, e
+        // chi non se ne occupa si ritrova il contenuto sotto l'orologio. È una
+        // modifica all'interfaccia, non un numero, e si alza dopo averla vista
+        // su un telefono vero.
         targetSdk = 34
         versionCode = appVersionCode
         versionName = appVersionName
@@ -87,10 +92,6 @@ android {
         isCoreLibraryDesugaringEnabled = true
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-    }
-
     buildFeatures {
         compose = true
         buildConfig = true
@@ -100,6 +101,15 @@ android {
         // Serve a Robolectric: i test del DAO girano sulla JVM ma hanno bisogno
         // delle risorse Android impacchettate.
         unitTests.isIncludeAndroidResources = true
+    }
+}
+
+// Il bersaglio della JVM per Kotlin. Stava in `kotlinOptions` dentro `android`,
+// che AGP ha deprecato: la configurazione del compilatore Kotlin appartiene
+// all'estensione `kotlin`, ed è lì che la cerca chi legge.
+kotlin {
+    compilerOptions {
+        jvmTarget = JvmTarget.JVM_17
     }
 }
 
@@ -114,7 +124,13 @@ android {
 androidComponents {
     onVariants { variant ->
         val measured = variant.buildType in setOf("benchmarkRelease", "nonMinifiedRelease")
-        variant.buildConfigFields.put(
+        // Nella nuova API di AGP 9 la mappa è assente, e non vuota, quando
+        // BuildConfig è spento per quella variante. Qui deve esserci: se
+        // sparisce, il flag non avrebbe dove stare e il ramo misurato si
+        // spegnerebbe in silenzio.
+        val fields = variant.buildConfigFields
+            ?: error("BuildConfig spento per la variante ${variant.name}")
+        fields.put(
             "BENCHMARK_DATA",
             com.android.build.api.variant.BuildConfigField(
                 "boolean",

@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 // Il modulo che guida l'app su un telefono vero: genera il Baseline Profile e
 // misura avvio a freddo e scorrimento, prima e dopo.
 //
@@ -6,13 +8,12 @@
 // libreria di test dentro il processo misurato.
 plugins {
     alias(libs.plugins.android.test)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.baselineprofile)
 }
 
 android {
     namespace = "it.mircozanzaro.fieldreports.baselineprofile"
-    compileSdk = 34
+    compileSdk = 37
 
     defaultConfig {
         // Vale per il modulo che misura, non per l'app, che resta alla 24.
@@ -28,8 +29,11 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget = JvmTarget.JVM_17
     }
 }
 

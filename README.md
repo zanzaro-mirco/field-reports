@@ -277,10 +277,14 @@ configurazione che avrebbe dovuto produrlo, e si ferma se trova `CN=Android Debu
 
 - JDK 17
 - Android Studio recente (o solo Gradle da riga di comando)
-- `minSdk` 24, `compileSdk` 34
+- `minSdk` 24, `compileSdk` 37
 
-> Le versioni delle dipendenze sono fissate in `gradle/libs.versions.toml`. Non sono le più
-> recenti: allinearle, a partire da `compileSdk` e `targetSdk`, è fra i prossimi passi.
+> Le versioni delle dipendenze sono fissate in `gradle/libs.versions.toml`, e sono quelle
+> correnti: AGP 9.4, Gradle 9.8, Kotlin 2.4, `compileSdk` 37. Due cose restano indietro
+> apposta. **`targetSdk` resta alla 34**, perché alzarlo impone all'app di disegnare sotto
+> le barre di sistema: è una modifica all'interfaccia, e si guarda su un telefono prima di
+> pubblicarla. **Retrofit e OkHttp** sono a una versione maggiore indietro e salgono in un
+> passo a parte, perché un cambio maggiore si legge meglio da solo.
 
 ## Stato e prossimi passi
 
@@ -294,7 +298,7 @@ configurazione che avrebbe dovuto produrlo, e si ferma se trova `CN=Android Debu
 - [x] Accessibilità: testo al 200%, bersagli per i guanti, contrasto misurato
 - [x] Macrobenchmark e Baseline Profile, misurati su un Galaxy S20: nessun guadagno oltre il rumore
 - [ ] La stessa misura su un telefono di fascia bassa
-- [ ] SDK e dipendenze allineati alle versioni correnti, a partire da `targetSdk`
+- [ ] `targetSdk` alla 37 e disegno sotto le barre di sistema, verificato sul telefono
 
 Il form di modifica, che stava in questa lista insieme al dettaglio, non arriverà: l'app legge
 le issue di GitHub senza autenticazione e non può scriverle. Le ragioni sono in
