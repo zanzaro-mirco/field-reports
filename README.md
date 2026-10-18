@@ -144,6 +144,17 @@ una volta sola in una classe astratta che le due sottoclassi si limitano a istan
 modo per sapere che sono davvero intercambiabili invece di sperarlo. La versione Room gira con
 Robolectric su SQLite in memoria: dentro `./gradlew test`, quindi in CI, senza emulatore.
 
+**La sincronizzazione riparte da sola quando torna la rete, e solo allora.**
+Quando un aggiornamento fallisce per mancanza di rete, il repository lascia a WorkManager un
+lavoro con il vincolo `CONNECTED`: il sistema lo tiene fermo finché la rete non torna, anche
+con l'app chiusa, poi lo fa partire e la cache si riempie. Un 404 o una risposta illeggibile
+non lasciano niente, perché aspettare la rete non li aggiusta. In `pos_sync` lo stesso
+strumento fa una cosa diversa, un lavoro periodico ogni quindici minuti, e la differenza è
+voluta: là c'è una coda di ordini da spedire, qui l'app è in sola lettura, e un lavoro
+periodico sveglierebbe il telefono ogni quarto d'ora per riscaricare dati che nessuno ha
+chiesto di vedere. Il ragionamento, e la difesa che il primo test non teneva, sono in
+[ARCHITECTURE.md](ARCHITECTURE.md).
+
 ## Struttura
 
 ```
@@ -162,6 +173,8 @@ app/src/main/java/it/mircozanzaro/fieldreports/
     ErrorMapper.kt             eccezioni tecniche -> errori di dominio
     DispatcherProvider.kt
     Clock.kt  StalenessPolicy.kt   il tempo e quando i dati sono vecchi
+    SyncScheduler.kt           ritentare quando torna la rete, senza sapere come
+  sync/                        WorkManager: il worker, la sua factory, il pianificatore
   ui/
     FieldReportsNavHost.kt     grafo di navigazione, rotte tipizzate
     ReportsUiState.kt          sealed interface
@@ -237,6 +250,12 @@ fallirebbe mai — una rete di sicurezza finta è peggio di nessuna rete.
 | `una cache della versione 1 si butta intera, data di sincronizzazione compresa` | Il primo cambio di schema: una cache vuota con una data fresca sarebbe creduta valida |
 | **`AccessibilityTest` (×8 stati)** | Con il testo al 200% su 360×640 dp: descrizioni, bersagli da 56 dp non sovrapposti, nessun testo tagliato, contrasto WCAG AA misurato sui pixel, indicatori che dicono cosa aspettano |
 | `un tocco appena fuori dall icona raggiunge ancora il pulsante` | Il bersaglio da 56 dp vale per il dito vero, non solo per l'area dichiarata |
+| **`quando la rete torna la cache si riempie`** | Il criterio della sincronizzazione in background, dall'inizio alla fine: il repository vero fallisce senza rete, il lavoro aspetta, la rete torna, i rapporti arrivano |
+| `il lavoro pianificato aspetta la rete` | Senza il vincolo `CONNECTED` il lavoro partirebbe subito, senza rete, e fallirebbe |
+| `dieci richieste senza rete lasciano in coda lo stesso lavoro` | `KEEP` e non `REPLACE`: con `REPLACE` il limite dei tentativi non scatterebbe mai |
+| `un errore del servizio non aspetta la rete` | Un 404 non cambia quando la rete torna |
+| `al quinto tentativo senza rete il worker smette` | Una rete che c'è ma non funziona non vale ore di tentativi |
+| `una cancellazione risale e non diventa un errore` | WorkManager ferma il worker quando la rete cade a metà: non è un guasto |
 
 Gli stati si osservano con **Turbine**, che permette di asserire su un flusso di emissioni
 invece che su un singolo valore finale.
@@ -254,6 +273,32 @@ Il primo rigenera i profili e richiede Android 13 o successivo; il secondo misur
 finiscono in `baselineprofile/build/outputs/connected_android_test_additional_output/`. Le
 build di misura leggono cinquanta rapporti generati invece delle issue di GitHub, così i numeri
 si confrontano fra un giro e l'altro.
+
+## Osservare la sincronizzazione su un telefono
+
+È l'unica parte della sincronizzazione in background che la pipeline non può provare: che il
+sistema svegli l'app chiusa quando la rete torna. Con un telefono collegato in debug, si
+toglie la rete:
+
+```bash
+adb shell svc wifi disable
+adb shell svc data disable
+```
+
+Si apre l'app e si tocca aggiorna: l'aggiornamento fallisce e il lavoro resta in attesa. Poi
+si chiude l'app dalle app recenti, **non** con «Forza arresto»: per Android un'app fermata a
+forza perde anche i lavori pianificati, finché qualcuno non la riapre. A quel punto:
+
+```bash
+adb shell "dumpsys jobscheduler | grep -A 12 it.mircozanzaro.fieldreports"
+adb shell svc wifi enable
+adb logcat -s WM-WorkerWrapper
+```
+
+Il primo comando deve mostrare un lavoro fermo sul vincolo di connettività; dopo il secondo,
+il log di WorkManager deve riportare l'esito del worker, e riaprendo l'app di nuovo senza
+rete i rapporti devono esserci. **Questa procedura non è ancora stata eseguita**: è l'ultimo
+punto aperto della sincronizzazione in background.
 
 ## Installarla senza compilarla
 
@@ -289,7 +334,8 @@ configurazione che avrebbe dovuto produrlo, e si ferma se trova `CN=Android Debu
 
 - [x] Cache locale con Room, per la consultazione offline
 - [x] Client HTTP reale (Retrofit + kotlinx-serialization) al posto di `FakeReportsApi`
-- [ ] Sincronizzazione in background quando la rete torna
+- [x] Sincronizzazione in background quando la rete torna, con WorkManager, verificata in test sul confine con lo scheduler
+- [ ] La stessa sincronizzazione osservata su un telefono, ad app chiusa: la procedura è scritta sopra
 - [x] Hilt al posto delle factory scritte a mano, quando il grafo di navigazione lo ha chiesto
 - [x] Compose UI test e screenshot test sulla schermata
 - [x] Release firmate e installabili, con la verifica che l'APK offuscato parta davvero

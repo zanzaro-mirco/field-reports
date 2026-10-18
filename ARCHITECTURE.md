@@ -26,6 +26,11 @@ data/
   DispatcherProvider.kt        i dispatcher come dipendenza
   Clock.kt                     il tempo come dipendenza
   StalenessPolicy.kt           quando i dati in cache sono da rinfrescare
+  SyncScheduler.kt             ritentare quando torna la rete, senza sapere come
+sync/
+  ReportsSyncWorker.kt         il worker: refreshIfStale, e tre risposte a WorkManager
+  WorkManagerSyncScheduler.kt  un lavoro unico, KEEP, vincolo CONNECTED
+  ReportsWorkerFactory.kt      costruisce il worker con il repository, senza hilt-work
 ui/
   FieldReportsNavHost.kt       grafo di navigazione, rotte tipizzate, ViewModel per destinazione
   ReportsUiState.kt            sealed interface
@@ -397,6 +402,82 @@ profilo al primo avvio, ma ART lo compila solo nell'ottimizzazione in background
 inattivo e in carica: chi installa da una Release non ne beneficia al primo avvio. Qui non è
 verificato. Il benchmark forza quella compilazione, e misura quindi il caso migliore.
 
+## La sincronizzazione in background
+
+Fino a questa versione la cache si aggiornava in due momenti: all'apertura della schermata e
+sul gesto dell'utente. Un tecnico che apre l'app in un seminterrato, vede l'avviso di rete
+assente e la chiude, alla riapertura successiva ritrovava i dati vecchi anche se la rete era
+tornata da ore.
+
+**Chi decide e chi esegue.** Il repository decide *quando* serve ritentare: dopo un fallimento
+per `Network` o `Timeout`, mai dopo un `Server` o un `Unknown`. Un 404 non diventa un 200
+aspettando la rete, che c'era. *Come* si ritenta lo decide `SyncScheduler`, un'interfaccia di
+un metodo che il livello dati usa senza sapere che dietro c'è WorkManager. Nei test è un
+contatore.
+
+**Un lavoro singolo, non periodico.** `pos_sync` risolve lo stesso problema con lo stesso
+strumento, e fa la scelta opposta: un lavoro periodico ogni quindici minuti, il minimo che
+Android concede. Là è giusto, perché c'è una coda di ordini scritti offline che prima o poi
+deve partire, che qualcuno la guardi o no. Qui l'app è in sola lettura e non ha niente da
+spedire: un lavoro periodico sveglierebbe il telefono ogni quarto d'ora per riscaricare
+rapporti che nessuno ha chiesto di vedere. Il lavoro nasce solo da un fallimento, e muore con
+la sincronizzazione che lo recupera.
+
+**Il worker chiama `refreshIfStale`, non `refresh`.** Se nel frattempo l'utente ha riaperto
+l'app e aggiornato a mano, la cache è fresca e il lavoro finisce senza toccare la rete. Per
+lo stesso motivo una sincronizzazione riuscita non cancella il lavoro in coda: quando parte,
+trova la cache buona e si chiude da solo. Una cancellazione esplicita sarebbe codice in più
+per risparmiare una lettura dal database.
+
+**Tre risposte diverse a WorkManager.**
+
+| Esito del repository | Risposta | Perché |
+|---|---|---|
+| riuscito | `success` | il lavoro è finito |
+| `Network`, `Timeout` | `retry`, al massimo cinque volte | il vincolo era soddisfatto e la richiesta è fallita lo stesso: un portale del Wi-Fi, una cella al limite. Con l'attesa che parte da trenta secondi e raddoppia, il quinto tentativo arriva circa sette minuti e mezzo dopo il primo |
+| `Server`, `Unknown` | `failure` | riprovare non cambia la risposta, e un worker che insiste consuma batteria |
+
+**`KEEP`, non `REPLACE`.** Il lavoro ha un nome, e una seconda richiesta mentre è in coda o
+sta girando viene ignorata. `REPLACE` sembra equivalente e non lo è. Il worker che fallisce
+senza rete passa dal repository, il repository chiede di nuovo, e con `REPLACE` il worker in
+corso verrebbe sostituito da uno nuovo con il conto dei tentativi a zero: il limite di cinque
+non scatterebbe mai.
+
+**Senza `hilt-work`.** Il worker ha un costruttore normale, e lo costruisce
+`ReportsWorkerFactory`, scritta a mano nello stesso spirito dei `@Provides`: il worker non sa
+niente di Dagger, e nei test si costruisce direttamente. L'inizializzazione automatica di
+WorkManager è tolta dal manifest perché partirebbe prima di Hilt con la factory predefinita;
+la configurazione la dà l'Application. Il fornitore di `androidx.startup` resta, perché nel
+manifest unito lo usano altre quattro librerie, dal ciclo di vita del processo a
+`profileinstaller`: si toglie solo la voce di WorkManager.
+
+**La cancellazione non è un errore.** Il ramo generico del repository catturava anche le
+`CancellationException` e le trasformava in `DomainError.Unknown`. Finché a cancellare era
+solo la chiusura di una schermata il difetto non si vedeva, perché non c'era più nessuno a
+guardare l'errore. Con WorkManager diventa un caso di tutti i giorni: la rete cade a metà
+download, il sistema ferma il worker, e quel «guasto» non lo era. Ora la cancellazione risale.
+
+### Cosa ha detto la falsificazione
+
+Quattro difese, rotte apposta una alla volta:
+
+| Difesa tolta | Test che diventa rosso |
+|---|---|
+| il vincolo `CONNECTED` | `il lavoro pianificato aspetta la rete`, `quando la rete torna la cache si riempie` |
+| il filtro su `Network` e `Timeout` | `un errore del servizio non aspetta la rete`, `una risposta illeggibile non aspetta la rete` |
+| il ramo che lascia risalire la cancellazione | `una cancellazione risale e non diventa un errore` |
+| `KEEP`, sostituito da `REPLACE` | `dieci richieste senza rete lasciano in coda lo stesso lavoro` |
+
+La quarta **al primo tentativo non ha retto.** Il test contava i lavori in coda, e con
+`REPLACE` il conto resta uno, perché il vecchio viene cancellato e sostituito: la suite è
+rimasta verde con la difesa tolta. Ora il test confronta l'id del lavoro prima e dopo le
+richieste, e con `REPLACE` fallisce.
+
+**Cosa non è provato.** I test girano su un WorkManager di test, dove il «quando torna la
+rete» lo dichiara il `TestDriver`. Che JobScheduler svegli davvero l'app chiusa quando il
+telefono ritrova il Wi-Fi si vede solo su un dispositivo, e la procedura è nel README. È lo
+stesso limite che `pos_sync` dichiara per lo stesso pezzo.
+
 ## MVVM, in concreto
 
 - La View osserva `StateFlow`, non chiama il ViewModel per leggere.
@@ -636,9 +717,13 @@ continui a fallire, è ciò che la distingue da quel gesto.
   rappresenta una data mancante o illeggibile, e il dettaglio lo mostra come «Data non
   disponibile». Un `Long?` nel dominio sarebbe più onesto; cambiarlo ora toccherebbe
   l'ordinamento della cache per un caso che la lista mostra già senza problemi.
-- **Nessuna sincronizzazione in background.** La cache si aggiorna all'apertura della
-  schermata e sul gesto dell'utente. Un `WorkManager` che drena quando la rete torna è il
-  passo successivo, ed è lo stesso problema già risolto in pos_sync.
+- **La sincronizzazione in background è provata su un WorkManager di test, non su un
+  telefono.** Il vincolo sulla rete lo dichiara soddisfatto il `TestDriver`; che il sistema
+  svegli davvero l'app chiusa quando torna il Wi-Fi si vede solo su un dispositivo, con la
+  procedura scritta nel README.
+- **Nessun aggiornamento periodico.** Se nessuna sincronizzazione è fallita non c'è niente
+  da recuperare, e la cache si aggiorna all'apertura della schermata come prima. Un lavoro
+  ogni quindici minuti costerebbe batteria per dati che nessuno ha chiesto di vedere.
 - **Nessuna autenticazione verso GitHub.** Senza token il limite è 60 richieste all'ora, che
   per una demo basta — e produce un `403` vero, cioè un errore reale da mostrare invece di uno
   simulato. Un token andrebbe conservato fuori dal repository, e la gestione dei segreti è un

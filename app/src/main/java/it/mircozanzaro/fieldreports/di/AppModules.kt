@@ -1,6 +1,7 @@
 package it.mircozanzaro.fieldreports.di
 
 import android.content.Context
+import androidx.work.WorkManager
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -10,6 +11,7 @@ import it.mircozanzaro.fieldreports.BuildConfig
 import it.mircozanzaro.fieldreports.data.DefaultReportsRepository
 import it.mircozanzaro.fieldreports.data.DispatcherProvider
 import it.mircozanzaro.fieldreports.data.StandardDispatcherProvider
+import it.mircozanzaro.fieldreports.data.SyncScheduler
 import it.mircozanzaro.fieldreports.data.local.FieldReportsDatabase
 import it.mircozanzaro.fieldreports.data.local.ReportsLocalStore
 import it.mircozanzaro.fieldreports.data.local.RoomReportsLocalStore
@@ -18,6 +20,8 @@ import it.mircozanzaro.fieldreports.data.remote.GitHubApi
 import it.mircozanzaro.fieldreports.data.remote.GitHubReportsApi
 import it.mircozanzaro.fieldreports.data.remote.ReportsApi
 import it.mircozanzaro.fieldreports.domain.ReportsRepository
+import it.mircozanzaro.fieldreports.sync.ReportsWorkerFactory
+import it.mircozanzaro.fieldreports.sync.WorkManagerSyncScheduler
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -30,7 +34,7 @@ import javax.inject.Singleton
 /*
  * La composition root: l'unico file dell'app che conosce le classi concrete.
  *
- * Era `AppContainer`, una classe scritta a mano. I tre moduli stanno in un file
+ * Era `AppContainer`, una classe scritta a mano. I quattro moduli stanno in un file
  * solo di proposito, perché il pregio di quella classe era che il grafo si
  * leggeva dall'alto in basso in un posto solo, e Hilt non è una ragione per
  * perderlo.
@@ -40,7 +44,7 @@ import javax.inject.Singleton
  * senza toccarli. Costa qualche riga in più di un `@Binds`, e in cambio il
  * livello dati resta compilabile e testabile senza sapere come viene montato.
  *
- * `@Singleton` sta su tre oggetti su otto, e non è avarizia. Vuol dire «questo
+ * `@Singleton` sta su tre oggetti su dieci, e non è avarizia. Vuol dire «questo
  * oggetto ha uno stato che deve essere uno solo»: il database, il client HTTP e
  * il servizio Retrofit ce l'hanno, e ognuno dice quale accanto al suo
  * `@Provides`. Metterlo anche su oggetti che non ne hanno sarebbe dichiarare una
@@ -160,9 +164,31 @@ object RepositoryModule {
         api: ReportsApi,
         local: ReportsLocalStore,
         dispatchers: DispatcherProvider,
+        syncScheduler: SyncScheduler,
     ): ReportsRepository = DefaultReportsRepository(
         api = api,
         local = local,
         dispatchers = dispatchers,
+        syncScheduler = syncScheduler,
     )
+}
+
+/**
+ * La sincronizzazione che riparte da sola quando torna la rete.
+ *
+ * Nessuno dei due è `@Singleton`: lo stato che conta — la coda dei lavori —
+ * lo tiene WorkManager, che è già uno per processo, e la factory la chiede una
+ * volta sola l'Application.
+ */
+@Module
+@InstallIn(SingletonComponent::class)
+object SyncModule {
+
+    @Provides
+    fun syncScheduler(@ApplicationContext context: Context): SyncScheduler =
+        WorkManagerSyncScheduler { WorkManager.getInstance(context) }
+
+    @Provides
+    fun workerFactory(repository: Provider<ReportsRepository>): ReportsWorkerFactory =
+        ReportsWorkerFactory(repository)
 }

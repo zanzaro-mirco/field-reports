@@ -1,7 +1,10 @@
 package it.mircozanzaro.fieldreports
 
+import it.mircozanzaro.fieldreports.data.DefaultErrorMapper
 import it.mircozanzaro.fieldreports.data.DefaultReportsRepository
+import it.mircozanzaro.fieldreports.data.ErrorMapper
 import it.mircozanzaro.fieldreports.data.FixedClock
+import it.mircozanzaro.fieldreports.data.SyncScheduler
 import it.mircozanzaro.fieldreports.data.TestDispatcherProvider
 import it.mircozanzaro.fieldreports.data.TimeBasedStalenessPolicy
 import it.mircozanzaro.fieldreports.data.local.InMemoryReportsLocalStore
@@ -11,6 +14,7 @@ import it.mircozanzaro.fieldreports.domain.DomainError
 import it.mircozanzaro.fieldreports.domain.Outcome
 import it.mircozanzaro.fieldreports.domain.Report
 import it.mircozanzaro.fieldreports.domain.ReportStatus
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -36,6 +40,17 @@ class ReportsRepositoryTest {
     private val dispatcher = StandardTestDispatcher()
     private val clock = FixedClock(now = 1_000)
 
+    /** Conta le richieste: è tutto quello che il repository può fare con lui. */
+    private class RecordingScheduler : SyncScheduler {
+        var requests: Int = 0
+
+        override fun scheduleWhenOnline() {
+            requests++
+        }
+    }
+
+    private val scheduler = RecordingScheduler()
+
     private class FakeApi(
         var dtos: List<ReportDto> = emptyList(),
         var failure: Throwable? = null,
@@ -53,12 +68,15 @@ class ReportsRepositoryTest {
         api: ReportsApi,
         store: InMemoryReportsLocalStore = InMemoryReportsLocalStore(),
         maxAgeMs: Long = 60_000,
+        errorMapper: ErrorMapper = DefaultErrorMapper(),
     ) = DefaultReportsRepository(
         api = api,
         local = store,
         dispatchers = TestDispatcherProvider(dispatcher),
+        syncScheduler = scheduler,
         clock = clock,
         stalenessPolicy = TimeBasedStalenessPolicy(maxAgeMs),
+        errorMapper = errorMapper,
     )
 
     private fun dto(
@@ -246,5 +264,69 @@ class ReportsRepositoryTest {
         repository(api, store).refresh()
 
         assertEquals(1, api.callCount)
+    }
+
+    // --- ripresa quando torna la rete ---------------------------------------
+
+    @Test
+    fun `senza rete la sincronizzazione si ripianifica`() = runTest(dispatcher) {
+        repository(FakeApi(failure = IOException("nessuna connettività"))).refresh()
+
+        assertEquals(1, scheduler.requests)
+    }
+
+    @Test
+    fun `anche un timeout si ripianifica`() = runTest(dispatcher) {
+        repository(FakeApi(failure = SocketTimeoutException())).refresh()
+
+        assertEquals(1, scheduler.requests)
+    }
+
+    @Test
+    fun `un errore del servizio non aspetta la rete`() = runTest(dispatcher) {
+        // La rete c'era: un 403 per il limite di richieste o un 404 non cambiano
+        // quando la rete «torna». Ripianificarli vorrebbe dire un worker che
+        // parte subito, fallisce uguale, e ritenta per niente.
+        val repository = repository(
+            api = FakeApi(failure = IllegalStateException("qualunque")),
+            errorMapper = ErrorMapper { DomainError.Server(403) },
+        )
+
+        repository.refresh()
+
+        assertEquals(0, scheduler.requests)
+    }
+
+    @Test
+    fun `una risposta illeggibile non aspetta la rete`() = runTest(dispatcher) {
+        repository(FakeApi(failure = IllegalStateException("stato incoerente"))).refresh()
+
+        assertEquals(0, scheduler.requests)
+    }
+
+    @Test
+    fun `una sincronizzazione riuscita non lascia niente in coda`() = runTest(dispatcher) {
+        repository(FakeApi(listOf(dto()))).refresh()
+
+        assertEquals(0, scheduler.requests)
+    }
+
+    @Test
+    fun `una cancellazione risale e non diventa un errore`() = runTest(dispatcher) {
+        // È quello che succede quando WorkManager ferma il worker perché la rete
+        // è caduta a metà: chi ha chiesto il lavoro non lo vuole più. Prima
+        // finiva nel ramo generico e tornava come `DomainError.Unknown`, cioè
+        // come un guasto da mostrare all'utente.
+        val api = FakeApi(failure = CancellationException("worker fermato"))
+
+        val thrown = try {
+            repository(api).refresh()
+            null
+        } catch (cancellation: CancellationException) {
+            cancellation
+        }
+
+        assertEquals("worker fermato", thrown?.message)
+        assertEquals(0, scheduler.requests)
     }
 }

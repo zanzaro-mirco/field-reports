@@ -182,6 +182,11 @@ dependencies {
     // significa rompersi il giorno in cui quella transitiva cambia.
     implementation(libs.okhttp)
 
+    // La sincronizzazione che riparte quando torna la rete, anche con l'app
+    // chiusa. Senza `hilt-work`: il worker lo costruisce una factory scritta
+    // a mano nella composition root, come ogni altro collegamento del grafo.
+    implementation(libs.androidx.work.runtime.ktx)
+
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
@@ -207,5 +212,6 @@ dependencies {
     testImplementation(libs.roborazzi.compose)
     testImplementation(libs.roborazzi.junit.rule)
     testImplementation(libs.hilt.android.testing)
+    testImplementation(libs.androidx.work.testing)
     kspTest(libs.hilt.compiler)
 }
