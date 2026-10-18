@@ -280,11 +280,10 @@ configurazione che avrebbe dovuto produrlo, e si ferma se trova `CN=Android Debu
 - `minSdk` 24, `compileSdk` 37
 
 > Le versioni delle dipendenze sono fissate in `gradle/libs.versions.toml`, e sono quelle
-> correnti: AGP 9.4, Gradle 9.8, Kotlin 2.4, `compileSdk` 37. Due cose restano indietro
-> apposta. **`targetSdk` resta alla 34**, perché alzarlo impone all'app di disegnare sotto
-> le barre di sistema: è una modifica all'interfaccia, e si guarda su un telefono prima di
-> pubblicarla. **Retrofit e OkHttp** sono a una versione maggiore indietro e salgono in un
-> passo a parte, perché un cambio maggiore si legge meglio da solo.
+> correnti: AGP 9.4, Gradle 9.8, Kotlin 2.4, Retrofit 3, OkHttp 5, `compileSdk` 37. Una
+> cosa resta indietro apposta: **`targetSdk` alla 34**, perché alzarlo impone all'app di
+> disegnare sotto le barre di sistema. È una modifica all'interfaccia, e si guarda su un
+> telefono prima di pubblicarla.
 
 ## Stato e prossimi passi
 

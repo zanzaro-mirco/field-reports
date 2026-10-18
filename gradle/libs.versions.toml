@@ -1,8 +1,8 @@
 # Version catalog: le versioni stanno in un posto solo.
 #
 # Allineate alle correnti il 18 ottobre 2026, lette dai repository e non da un
-# articolo. Due restano indietro apposta, con il motivo scritto accanto:
-# `targetSdk` (sotto, in app/build.gradle.kts) e Retrofit con OkHttp.
+# articolo. Una resta indietro apposta, con il motivo scritto accanto:
+# `targetSdk`, in app/build.gradle.kts.
 [versions]
 agp = "9.4.1"
 kotlin = "2.4.21"
@@ -14,8 +14,8 @@ navigation = "2.10.2"
 composeBom = "2026.09.00"
 coroutines = "1.11.0"
 serialization = "1.11.0"
-retrofit = "2.12.0"
-okhttp = "4.12.0"
+retrofit = "3.0.0"
+okhttp = "5.5.0"
 desugar = "2.1.5"
 room = "2.8.5"
 junit = "4.13.2"
