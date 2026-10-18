@@ -46,7 +46,7 @@ abstract class FieldReportsDatabase : RoomDatabase() {
          */
         fun open(context: Context, name: String = NAME): FieldReportsDatabase = Room
             .databaseBuilder(context.applicationContext, FieldReportsDatabase::class.java, name)
-            .fallbackToDestructiveMigration()
+            .fallbackToDestructiveMigration(dropAllTables = true)
             .build()
     }
 }
